@@ -1,4 +1,3 @@
-print("Hello from client.py")
 from Modules import dateModule, dataModule, textModule
 
 # External Libraries
@@ -74,7 +73,7 @@ slash = SlashCommand(client, sync_commands = True)
 	name = "show",
 	description = "I'll write out all custom words that I'm currently using from this server's word library.",
 	options = [
-		create_option(
+		create_option( # TODO: Re-organize and make library required, to add separate argument for requesting specific word.
 			name = "library",
 			description = "Would you like to see a diffrent library? Paste a server ID here, or select another option.",
 			option_type = 3,

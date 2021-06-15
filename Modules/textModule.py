@@ -4,8 +4,6 @@ from Modules import dataModule
 import random
 from datetime import datetime, timedelta
 
-print("Hello from textModule.py")
-
 class Grammar():
 	def __init__(self):
 		print("aaa")

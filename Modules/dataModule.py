@@ -1,8 +1,6 @@
 # External Libraries
 import sqlite3
 
-print("Hello from dataModule.py")
-
 # Makes an ascii table out of data.
 def writeTable(data, names = None, maxLengths = None):
 	if not names is None:
