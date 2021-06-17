@@ -10,16 +10,16 @@ def writeTable(data, names = None, maxLengths = None):
 		for c in range(len(data[r])):
 			if c >= len(lengths):
 				lengths.append(0)
-			
+			maxLength = maxLengths[min(c, len(maxLengths) - 1)]
 			if data[r][c] is None: # Makes empty cells empty.
 				data[r][c] = ""
-			elif not maxLengths is None and len(str(data[r][c])) > maxLengths[min(c, len(maxLengths) - 1)]: # Cuts off too long cells.
-				data[r][c] = str(data[r][c])[:(maxLengths[(min(c, len(maxLengths) - 1))])] + "…"
-				lengths[c] = maxLengths[(min(c, len(maxLengths) - 1))]
+			elif not maxLength is None and len(str(data[r][c])) > maxLength: # Cuts off too long cells.
+				data[r][c] = str(data[r][c])[:(maxLength)] + "…"
+				lengths[c] = maxLength
 			elif len(str(data[r][c])) > lengths[c]:
 				lengths[c] = len(str(data[r][c]))
 	send = ""
-	for r in range(len(data)):
+	for r in range(len(data)): # TODO: Remove trailing spaces.
 		for c in range(len(lengths)):
 			send += "| "
 			if c < len(data[r]):
@@ -42,7 +42,13 @@ def writeTable(data, names = None, maxLengths = None):
 						for length in lengths:
 							send += "| " + ("-" * length) + " "
 						send += "|\n"
-	print(send)
 	return send
 
 connection = sqlite3.connect("database.sqlite")
+
+# Gathers all column names.
+cursor = connection.cursor()
+cursor.execute("PRAGMA table_info(defaultLibrary)")
+columns = []
+for column in cursor.fetchall():
+	columns.append(column[1])

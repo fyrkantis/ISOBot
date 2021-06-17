@@ -72,13 +72,13 @@ slash = SlashCommand(client, sync_commands = True)
 @slash.subcommand(
 	base = "words",
 	name = "show",
-	description = "I'll show all words in a specific library. Default is this \"server\"'s custom word library.",
+	description = "I'll show all words, or one specific, from a word library.",
 	options = [
 		create_option(
 			name = "library",
-			description = "This \"server\"'s, the \"default\", other server's \"connected\", \"everything\" combined, or a server's ID.",
+			description = "This \"server\"'s, the \"default\", other \"connected\" server's, \"everything\" combined, or a server's ID.",
 			option_type = 3,
-			required = False
+			required = True
 		),
 		create_option(
 			name = "word",
@@ -89,25 +89,26 @@ slash = SlashCommand(client, sync_commands = True)
 	],
  	guild_ids = guild_ids
 )
-async def writeWords(ctx, library = "server"):
-	cursor = dataModule.connection.cursor()
-	cursor.execute("PRAGMA table_info(defaultLibrary)") # Gathers all column names.
-	columns = []
-	for column in cursor.fetchall():
-		columns.append(column[1])
-	columnLengths = [10, 8, 3]
-
+async def writeWords(ctx, library = "server", word = None): # TODO: Add column for the word's source library.
+	columns = dataModule.columns
+	
 	# Selects query and arguments.
 	target = "customLibrary WHERE server = @0"
 	args = []
 	send = "Showing "
+	if not word is None:
+		send += "word "
+		if word.isdigit():
+			send += word + " "
+		else:
+			send += "\"" + word + "\" "
+		send += "from "
 	if library.isdigit():
 		server = client.get_guild(int(library))
 		if server is None:
-			await ctx.send("Invalid server ID, use the number found when right-clicking a server's icon.")
+			await ctx.send("**Invalid server ID**, use the number found when right-clicking a server's icon and selecting the last option.")
 			return
 		columns.pop(1)
-		columnLengths.pop(1)
 		args = [int(library)]
 		send += library
 		send += " \""
@@ -115,33 +116,62 @@ async def writeWords(ctx, library = "server"):
 		send += "\"'s "
 	elif library.lower() == "default":
 		target = "defaultLibrary"
-		send += "the default "
+		send += "the **default** "
 	elif library.lower() == "connected":
-		send += "every other server's connected "
+		send += "every other **connected** server's "
+		await ctx.send("**Error**, not implemented yet.")
+		return
 	elif library.lower() == "everything":
-		send += "this server's word library, the default word library *and* every other server's connected "
+		columns.pop(1)
+		args = [ctx.guild.id]
+		columnString = ""
+		for i in range(len(columns)):
+			if i > 0:
+				columnString += ", "
+			columnString += columns[i]
+		target = f"(SELECT {columnString} FROM {target} UNION ALL SELECT {columnString} FROM defaultLibrary)"
+		send += "this **server**'s word library, the **default** word library *and* every other **connected** server's "
 	elif library == "server":
 		columns.pop(1)
-		columnLengths.pop(1)
 		args = [ctx.guild.id]
-		send += "this server's "
+		send += "this **server**'s "
+	else:
+		await ctx.send("""**Invalid library**, input either:
+- *\"server\"* for this server's custom word library.
+- *\"default\"* for the default word library.
+- *\"connected\"* for all other connected server's custom libraries.
+- *\"everything\"* for everything combined.
+- Paste a *server ID* for that server's custom word library.""")
+		return
 	send += "word library:\n```"
 
-	query = "SELECT "
-	for i in range(len(columns)):
-		query += columns[i]
-		if i + 1 < len(columns):
-			query += ", "
-	query += " FROM " + target + " ORDER BY word;"
-
+	# Generates query.
+	query = "SELECT row_number() OVER (ORDER BY word)"
+	for column in columns:
+		query += ", "
+		query += column
+	query += " FROM " + target
+	if not word is None and not word.isdigit():
+		if library.isdigit() or library.lower() == "server":
+			query += " AND"
+		else:
+			query += " WHERE"
+		query += " word = @" + str(len(args))
+		args.append(word)
+	query += " ORDER BY word"
+	if not word is None and word.isdigit():
+		query += " LIMIT 1 OFFSET (@" + str(len(args)) + " - 1)"
+		args.append(int(word))
+	query += ";"
+	print(query)
+	cursor = dataModule.connection.cursor()
 	cursor.execute(query, args)
-	words = cursor.fetchall()
-	for i in range(len(words)):
-		words[i] = [i] + list(words[i])
-	columns.insert(0, "#")
-	columnLengths.insert(0, 3)
+	words = []
+	for word in cursor.fetchall():
+		words.append(list(word))
+	
 	if len(words) > 0:
-		send += dataModule.writeTable(words, columns, columnLengths)
+		send += dataModule.writeTable(words, ["#"] + columns, [None, 10, 3])
 	else:
 		send += "There are no words in this library."
 	send += "```"
