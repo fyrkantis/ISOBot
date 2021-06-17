@@ -1,3 +1,4 @@
+from discord.flags import fill_with_flags, flag_value
 from Modules import dateModule, dataModule, textModule
 
 # External Libraries
@@ -71,57 +72,55 @@ slash = SlashCommand(client, sync_commands = True)
 @slash.subcommand(
 	base = "words",
 	name = "show",
-	description = "I'll write out all custom words that I'm currently using from this server's word library.",
+	description = "I'll show all words in a specific library. Default is this \"server\"'s custom word library.",
 	options = [
-		create_option( # TODO: Re-organize and make library required, to add separate argument for requesting specific word.
+		create_option(
 			name = "library",
-			description = "Would you like to see a diffrent library? Paste a server ID here, or select another option.",
+			description = "This \"server\"'s, the \"default\", other server's \"connected\", \"everything\" combined, or a server's ID.",
 			option_type = 3,
-			required = False,
-			choices = [
-				create_choice(name = "server", value = "server"),
-				create_choice(name = "default", value = "default"),
-				create_choice(name = "connected", value = "connected"),
-				create_choice(name = "everything", value = "everything")
-			]
+			required = False
 		),
 		create_option(
-			name = "server",
-			description = "Paste a valid server ID to se the server's custom word library.",
+			name = "word",
+			description = "Show a specific word from that library. Enter the word, or it's number #.",
 			option_type = 3,
 			required = False
 		)
 	],
  	guild_ids = guild_ids
 )
-async def writeWords(ctx, library = None, server = None):
+async def writeWords(ctx, library = "server"):
 	cursor = dataModule.connection.cursor()
 	cursor.execute("PRAGMA table_info(defaultLibrary)") # Gathers all column names.
 	columns = []
 	for column in cursor.fetchall():
 		columns.append(column[1])
-	columnLengths = [11, 9, 4]
+	columnLengths = [10, 8, 3]
 
 	# Selects query and arguments.
 	target = "customLibrary WHERE server = @0"
 	args = []
 	send = "Showing "
-	if server and server.isdigit():
+	if library.isdigit():
+		server = client.get_guild(int(library))
+		if server is None:
+			await ctx.send("Invalid server ID, use the number found when right-clicking a server's icon.")
+			return
 		columns.pop(1)
 		columnLengths.pop(1)
-		args = [int(server)]
-		send += str(server)
+		args = [int(library)]
+		send += library
 		send += " \""
-		send += client.get_guild(int(server)).name
+		send += server.name
 		send += "\"'s "
-	elif library and library.lower() == "default":
+	elif library.lower() == "default":
 		target = "defaultLibrary"
 		send += "the default "
-	elif library and library.lower() == "connected":
-		send += "every connected "
-	elif library and library.lower() == "everything":
-		send += "this server's word library, the default word library *and* every connected "
-	else:
+	elif library.lower() == "connected":
+		send += "every other server's connected "
+	elif library.lower() == "everything":
+		send += "this server's word library, the default word library *and* every other server's connected "
+	elif library == "server":
 		columns.pop(1)
 		columnLengths.pop(1)
 		args = [ctx.guild.id]
@@ -136,9 +135,11 @@ async def writeWords(ctx, library = None, server = None):
 	query += " FROM " + target + " ORDER BY word;"
 
 	cursor.execute(query, args)
-	words = []
-	for word in cursor.fetchall():
-		words.append(list(word))
+	words = cursor.fetchall()
+	for i in range(len(words)):
+		words[i] = [i] + list(words[i])
+	columns.insert(0, "#")
+	columnLengths.insert(0, 3)
 	if len(words) > 0:
 		send += dataModule.writeTable(words, columns, columnLengths)
 	else:
