@@ -10,8 +10,6 @@ from discord_slash import SlashCommand
 from discord_slash.utils.manage_commands import create_choice, create_option
 from dotenv import load_dotenv
 
-print("Hello from clientModule.py")
-
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD = os.getenv("DISCORD_GUILD")
