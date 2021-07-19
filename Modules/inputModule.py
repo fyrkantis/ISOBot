@@ -1,6 +1,8 @@
-from Modules import dataModule
+import discord
+from . import dataModule, textModule
 
 # External Libraries
+from datetime import datetime
 from discord_slash import SlashCommand
 from discord_slash.utils.manage_commands import create_choice, create_option
 
@@ -107,9 +109,9 @@ def addSlashCommands(client):
 		],
 		guild_ids = guild_ids
 	)
-	async def writeWords(ctx, library = "server", word = None): # TODO: Add column for the word's source library.
-		columns = dataModule.columns
-		
+	async def writeWords(ctx, library = "server", word = None): # TODO: Separate libraries from collections (server x's custom library is a library, the default library is a library, 'everything' and 'connected' are collecitons of libraries).
+		columns = ["word"] + dataModule.wordTypes
+
 		# Selects query and arguments.
 		target = "customLibrary WHERE server = @0"
 		args = []
@@ -126,7 +128,6 @@ def addSlashCommands(client):
 			if server is None:
 				await ctx.send("**Invalid server ID**, use the number found when right-clicking a server's icon and selecting the last option.")
 				return
-			columns.pop(1)
 			args = [int(library)]
 			send += library
 			send += " \""
@@ -134,23 +135,22 @@ def addSlashCommands(client):
 			send += "\"'s "
 		elif library.lower() == "default":
 			target = "defaultLibrary"
+			columns.insert(1, "severity")
 			send += "the **default** "
 		elif library.lower() == "connected":
 			send += "every other **connected** server's "
 			await ctx.send("**Error**, not implemented yet.")
 			return
-		elif library.lower() == "everything":
-			columns.pop(1)
+		elif library.lower() == "everything": # TODO: Add column for the word's source library and server/severity.
 			args = [ctx.guild.id]
+
 			columnString = ""
-			for i in range(len(columns)):
-				if i > 0:
-					columnString += ", "
-				columnString += columns[i]
-			target = f"(SELECT {columnString} FROM {target} UNION ALL SELECT {columnString} FROM defaultLibrary)"
+			for wordType in dataModule.wordTypes:
+				columnString += ", "
+				columnString += wordType
+			target = f"(SELECT word{columnString} FROM {target} UNION ALL SELECT word{columnString} FROM defaultLibrary)"
 			send += "this **server**'s word library, the **default** word library *and* every other **connected** server's "
 		elif library == "server":
-			columns.pop(1)
 			args = [ctx.guild.id]
 			send += "this **server**'s "
 		else:
@@ -161,7 +161,7 @@ def addSlashCommands(client):
 	- *\"everything\"* for everything combined.
 	- Paste a *server ID* for that server's custom word library.""")
 			return
-		send += "word library:\n```"
+		send += "word library:"
 
 		# Generates query.
 		query = "SELECT row_number() OVER (ORDER BY word)"
@@ -181,6 +181,7 @@ def addSlashCommands(client):
 			query += " LIMIT 1 OFFSET (@" + str(len(args)) + " - 1)"
 			args.append(int(word))
 		query += ";"
+		columns.insert(0, "#")
 		
 		# Executes query.
 		cursor = dataModule.connection.cursor()
@@ -190,22 +191,22 @@ def addSlashCommands(client):
 			words.append(list(word))
 		
 		# Formats results.
-		if len(words) > 0:
-			if len(words) > 1:
-				send += dataModule.writeTable(words, ["#"] + columns, [None, 10, 3])
-			else: # TODO: Add more info about word here.
-				for i in range(len(columns)):
-					send += "\n"
-					send += columns[i]
-					send += ": "
-					send += str(words[0][i + 1])
+		if len(words) > 1:
+			with open("results.txt", "w") as file:
+				file.write(f"Contents of library \"{library.lower()}\", as of {str(datetime.utcnow())[:19]} UTC:\n{dataModule.writeTable(words, columns)}")
+			with open("results.txt", "rb") as file:
+				await ctx.send(send, file = discord.File(file, "libraryContents.txt"))
 		else:
-			if word is None:
-				send += "There are no words in this library."
+			if len(words) > 0:
+				send += "\n```\n" + str(textModule.Word(words[0], library.lower())) + "```"
 			else:
-				send += "The word you're looking for couldn't be found."
-		send += "```"
-		await ctx.send(send)
+				send += "\n```\n"
+				if word is None:
+					send += "There are no words in this library."
+				else:
+					send += "The word you're looking for could not be found."
+				send += "```"
+			await ctx.send(send)
 
 	@slash.subcommand(
 		base = "words",
@@ -260,7 +261,7 @@ Check the parameter descriptions, and only select an option if they fit your wor
 	)
 	async def delete(ctx, word): # TODO: Add check for if word existed.
 		send = "Successfully deleted word "
-		query = "DELETE FROM customLibrary WHERE "
+		query = "FROM customLibrary WHERE "
 		if word.isdigit():
 			query += "word IN (SELECT word FROM customLibrary WHERE "
 		query += "(server = @0"
@@ -274,12 +275,12 @@ Check the parameter descriptions, and only select an option if they fit your wor
 		send += "from this **server**'s custom word library."
 		
 		cursor = dataModule.connection.cursor()
-		cursor.execute(query, [ctx.guild.id, word])
-		cursor.close()
-		dataModule.connection.commit(
-
-		)
-		await ctx.send(send)
+		#cursor.execute("DELETE " + query, [ctx.guild.id, word])
+		#cursor.close()
+		#dataModule.connection.commit()
+		
+		cursor.execute("SELECT count(*)  " + query, [ctx.guild.id, word])
+		await ctx.send(str(cursor.fetchone()))
 
 	@slash.subcommand(
 		base = "words",

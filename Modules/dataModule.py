@@ -2,7 +2,7 @@
 import sqlite3
 
 # Makes an ascii table out of data.
-def writeTable(data, names = None, maxLengths = None):
+def writeTable(data, names = None, maxLengths = [None]):
 	if not names is None:
 		data.insert(0, names)
 	lengths = []
@@ -18,6 +18,7 @@ def writeTable(data, names = None, maxLengths = None):
 				lengths[c] = maxLength
 			elif len(str(data[r][c])) > lengths[c]:
 				lengths[c] = len(str(data[r][c]))
+
 	send = ""
 	for r in range(len(data)): # TODO: Remove trailing spaces.
 		for c in range(len(lengths)):
@@ -35,13 +36,15 @@ def writeTable(data, names = None, maxLengths = None):
 			else:
 				send += " " * lengths[c]
 			if c + 1 == len(lengths):
-				send += "| "
+				send += "|"
 				if r + 1 < len(data):
 					send += "\n"
 					if r == 0 and not names is None:
 						for length in lengths:
 							send += "| " + ("-" * length) + " "
 						send += "|\n"
+				else:
+					send += " "
 	return send
 
 connection = sqlite3.connect("database.sqlite")
@@ -49,6 +52,6 @@ connection = sqlite3.connect("database.sqlite")
 # Gathers all column names.
 cursor = connection.cursor()
 cursor.execute("PRAGMA table_info(defaultLibrary)")
-columns = []
-for column in cursor.fetchall():
-	columns.append(column[1])
+wordTypes = []
+for wordType in cursor.fetchall()[2:]:
+	wordTypes.append(wordType[1])

@@ -1,14 +1,50 @@
-from Modules import dataModule
+from . import dataModule
 
 # External Libraries
 import random
 from datetime import datetime, timedelta
 
-class Grammar():
-	def __init__(self):
-		print("aaa")
+class Word():
+	def __init__(self, parameters, library = None):
+		print(parameters)
+		self.library = library
+		self.number = None
+		self.severity = None
+		self.server = None
 
-class Sentence(Grammar):
+		parameters = list(parameters)
+
+		if not self.library is None: # If the library is provided, then the number is the first parameter.
+			self.number = parameters[0]
+			self.word = parameters[1]
+			if self.library == "default":
+				self.severity = parameters[2]
+			else:
+				self.server = parameters[2]
+			parameters = parameters[2:]
+		else:
+			self.word = parameters[0]
+			parameters = parameters[1:]
+
+		self.parameters = {}
+		for i in range(len(dataModule.wordTypes)):
+			if i >= len(parameters):
+				parameters.append(None)
+			self.parameters.update({dataModule.wordTypes[i]: parameters[i]})
+
+	def __str__(self):
+		send = self.word
+		print(send)
+		if not self.library is None:
+			send += f"\nRow number {self.number} in library \"{self.library}\"."
+		for name, value in self.parameters.items(): # TODO: Add more info about word here.
+			send += "\n"
+			send += name
+			send += ": "
+			send += str(value)
+		return send
+
+class Sentence():
 	def __init__(self, message):
 		self.skew = 0
 		self.limit = 5
