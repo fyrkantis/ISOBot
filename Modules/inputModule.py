@@ -155,11 +155,11 @@ def addSlashCommands(client):
 			send += "this **server**'s "
 		else:
 			await ctx.send("""**Invalid library**, input either:
-	- *\"server\"* for this server's custom word library.
-	- *\"default\"* for the default word library.
-	- *\"connected\"* for all other connected server's custom libraries.
-	- *\"everything\"* for everything combined.
-	- Paste a *server ID* for that server's custom word library.""")
+- *\"server\"* for this server's custom word library.
+- *\"default\"* for the default word library.
+- *\"connected\"* for all other connected server's custom libraries.
+- *\"everything\"* for everything combined.
+- Paste a *server ID* for that server's custom word library.""")
 			return
 		send += "word library:"
 
@@ -224,7 +224,7 @@ def addSlashCommands(client):
 	async def add(ctx, word, **kwargs):
 		if len(kwargs) <= 0:
 			await ctx.send("""**Too few parameters**, select an option on *at least* one of the parameters after *word*.
-Check the parameter descriptions, and only select an option if they fit your word.""")
+Check the parameter descriptions and select all options that fit your word.""")
 			return
 		
 		query = "INSERT INTO customLibrary (word, server"
@@ -243,44 +243,50 @@ Check the parameter descriptions, and only select an option if they fit your wor
 
 		send = "Successfully added the word \""
 		send += word
-		send += "\" to this server's custom word library."
+		send += "\" to this **server**'s custom word library."
+		
 		await ctx.send(send)
 	
 	@slash.subcommand(
 		base = "words",
 		name = "delete",
-		description = "Remove a word from this server's custom word library, and I'll stop using it.",
+		description = "Delete a word from this server's custom word library, and I'll stop using it.",
 		options = [
 			create_option(
 				name = "word",
-				description = "Either write the word, or its row number # in this server's custom word library.",
+				description = "Either write the word or its row number # in this server's custom word library.",
 				option_type = 3,
 				required = True
 			)],
 		guild_ids = guild_ids
 	)
-	async def delete(ctx, word): # TODO: Add check for if word existed.
-		send = "Successfully deleted word "
+	async def delete(ctx, word):
 		query = "FROM customLibrary WHERE "
 		if word.isdigit():
 			query += "word IN (SELECT word FROM customLibrary WHERE "
 		query += "(server = @0"
 		if word.isdigit():
 			query += ") ORDER BY word LIMIT 1 OFFSET @1 - 1);"
-			send += word + " "
-			word = int(word)
 		else:
 			query += " AND word = @1);"
-			send += "\"" + word + "\" "
-		send += "from this **server**'s custom word library."
 		
 		cursor = dataModule.connection.cursor()
-		#cursor.execute("DELETE " + query, [ctx.guild.id, word])
-		#cursor.close()
-		#dataModule.connection.commit()
-		
-		cursor.execute("SELECT count(*)  " + query, [ctx.guild.id, word])
-		await ctx.send(str(cursor.fetchone()))
+		cursor.execute("SELECT row_number() OVER (ORDER BY word), word, count(*) " + query, [ctx.guild.id, word])
+		check = cursor.fetchone()
+		if check[2] == 0:
+			send = "**Deletion aborted**, "
+			if word.isdigit():
+				send += "word number " + word
+			else:
+				send += "the word \"" + word + "\""
+			send += " doesn't exist in "
+		else:
+			send = "Successfully deleted word number " + str(check[0]) + " \"" + check[1] + "\" from "
+			cursor = dataModule.connection.cursor()
+			cursor.execute("DELETE " + query, [ctx.guild.id, word])
+			dataModule.connection.commit()
+		send += "this **server**'s custom word library."
+		await ctx.send(send)
 
 	@slash.subcommand(
 		base = "words",
@@ -289,4 +295,8 @@ Check the parameter descriptions, and only select an option if they fit your wor
 		guild_ids = guild_ids
 	)
 	async def help(ctx):
-		await ctx.send("Good luck!")
+		await ctx.send("""My messages contain some randomly selected cursewords and insults from my word libraries. If you add your own cursewords and insults to this server's custom word library, I'll start using them in this server. When adding words, make sure to fill in the parameters so I know when to use them and how they should be inflected gramatically.
+All current commands are as follows:
+- **/words show**, shows the content of a word library (or a single word in it). Write either *\"server\"* for this server's custom word library, *\"default\"* for the default word library, *\"connected\"* for all other connected server's custom word libraries, *\"everything\"* for everything combined, or paste a *server id* for thar server's custom word library. For a specific word, either write the word or its row number # in the selected word library.
+- **/words add**, add a new word to this server's custom word library, and I'll start using it. Check the parameter descriptions and select all options that fit your word.
+- **/words delete**, delete a word from this server's custom word library, and I'll stop using it. Either write the word or its row number # in this server's custom word library.""")
