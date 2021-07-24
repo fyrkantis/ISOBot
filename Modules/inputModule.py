@@ -16,7 +16,6 @@ create_option(
 	choices = [
 		create_choice(name = "most (word). Example: Devoid.", value = 0),
 		create_choice(name = "most (word)ic. Example: Idiot.", value = 1),
-		create_choice(name = "most (word)ish. Example: Dick.", value = 2),
 		create_choice(name = "most (word)ed up. Example: Mess.", value = 3),
 		create_choice(name = "(word)est. Example: Stupid.", value = 4),
 		create_choice(name = "(word + last letter, so wordd)iest. Example: Crap.", value = 5)
@@ -109,7 +108,7 @@ def addSlashCommands(client):
 		],
 		guild_ids = guild_ids
 	)
-	async def writeWords(ctx, library = "server", word = None): # TODO: Separate libraries from collections (server x's custom library is a library, the default library is a library, 'everything' and 'connected' are collecitons of libraries).
+	async def show(ctx, library = "server", word = None): # TODO: Separate libraries from collections (server x's custom library is a library, the default library is a library, 'everything' and 'connected' are collecitons of libraries).
 		columns = ["word"] + dataModule.wordTypes
 
 		# Selects query and arguments.
@@ -246,44 +245,66 @@ Check the parameter descriptions and select all options that fit your word.""")
 		send += "\" to this **server**'s custom word library."
 		
 		await ctx.send(send)
-	
+
+	"""@slash.subcommand(
+		base = "words",
+		name = "update",
+		description = "Change the parameters of an already existing word by entering new ones.",
+		options = [
+			create_option(
+				name = "target",
+				description = "Either write the word or its row number # in this server's custom word library.",
+				option_type = 3,
+				required = True
+			),
+			create_option(
+				name = "word",
+				description = "This is the base of the word. Use the other parameters to specify how the word should be used.",
+				option_type = 3,
+				required = False
+			)] + wordParameters,
+		guild_ids = guild_ids
+	)
+	async def update(ctx, target, **kwargs):
+		await ctx.send("Not implemented.")"""
+
 	@slash.subcommand(
 		base = "words",
 		name = "delete",
 		description = "Delete a word from this server's custom word library, and I'll stop using it.",
 		options = [
 			create_option(
-				name = "word",
+				name = "target",
 				description = "Either write the word or its row number # in this server's custom word library.",
 				option_type = 3,
 				required = True
 			)],
 		guild_ids = guild_ids
 	)
-	async def delete(ctx, word):
+	async def delete(ctx, target):
 		query = "FROM customLibrary WHERE "
-		if word.isdigit():
+		if target.isdigit():
 			query += "word IN (SELECT word FROM customLibrary WHERE "
 		query += "(server = @0"
-		if word.isdigit():
+		if target.isdigit():
 			query += ") ORDER BY word LIMIT 1 OFFSET @1 - 1);"
 		else:
 			query += " AND word = @1);"
 		
 		cursor = dataModule.connection.cursor()
-		cursor.execute("SELECT row_number() OVER (ORDER BY word), word, count(*) " + query, [ctx.guild.id, word])
+		cursor.execute("SELECT row_number() OVER (ORDER BY word), word, count(*) " + query, [ctx.guild.id, target])
 		check = cursor.fetchone()
 		if check[2] == 0:
 			send = "**Deletion aborted**, "
-			if word.isdigit():
-				send += "word number " + word
+			if target.isdigit():
+				send += "word number " + target
 			else:
-				send += "the word \"" + word + "\""
+				send += "the word \"" + target + "\""
 			send += " doesn't exist in "
 		else:
 			send = "Successfully deleted word number " + str(check[0]) + " \"" + check[1] + "\" from "
 			cursor = dataModule.connection.cursor()
-			cursor.execute("DELETE " + query, [ctx.guild.id, word])
+			cursor.execute("DELETE " + query, [ctx.guild.id, target])
 			dataModule.connection.commit()
 		send += "this **server**'s custom word library."
 		await ctx.send(send)
