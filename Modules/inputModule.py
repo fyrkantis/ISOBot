@@ -6,85 +6,23 @@ from datetime import datetime
 from discord_slash import SlashCommand
 from discord_slash.utils.manage_commands import create_choice, create_option
 
-# TODO: Shorten and automatically pick examples.
-wordParameters = [
-create_option(
-	name = "adjective",
-	description = "Input inflection IF this sentence works: \"You are the (word) person ever.\".",
-	option_type = 4,
-	required = False,
-	choices = [
-		create_choice(name = "most (word). Example: Devoid.", value = 0),
-		create_choice(name = "most (word)ic. Example: Idiot.", value = 1),
-		create_choice(name = "most (word)ed up. Example: Mess.", value = 3),
-		create_choice(name = "(word)est. Example: Stupid.", value = 4),
-		create_choice(name = "(word + last letter, so wordd)iest. Example: Crap.", value = 5)
-	]
-),
-create_option(
-	name = "binder",
-	description = "Input inflection IF this sentence works: \"You are very (word) bad.\".",
-	option_type = 4,
-	required = False,
-	choices = [
-		create_choice(name = "(word). Example: Damn.", value = 0),
-		create_choice(name = "(word)ing. Example: Fuck.", value = 1)
-	]
-),
-create_option(
-	name = "comment",
-	description = "Input inflection IF this sentence works: \"What the (word) is this?\".",
-	option_type = 4,
-	required = False,
-	choices = [
-		create_choice(name = "(word). Example: Hell.", value = 0)
-	]
-),
-create_option(
-	name = "degree",
-	description = "Input inflection IF this sentence works: \"You are (word) bad person.\".",
-	option_type = 4,
-	required = False,
-	choices = [
-		create_choice(name = "a (word). Example: Very.", value = 0),
-		create_choice(name = "a (word)ly. Example: Real.", value = 1),
-		create_choice(name = "an (word)ly. Example: Extreme.", value = 2)
-	]
-),
-create_option(
-	name = "insult",
-	description = "Input inflection IF this sentence works: \"You are (word).\".",
-	option_type = 4,
-	required = False,
-	choices = [
-		create_choice(name = "an (word). Example: Idiot.", value = 0),
-		create_choice(name = "a (word). Example: Moron.", value = 1),
-		create_choice(name = "a (word)er. Example: Fuck.", value = 2),
-		create_choice(name = "a piece of (word). Example: Shit.", value = 2)
-	]
-),
-create_option(
-	name = "object",
-	description = "Input inflection IF this sentence works: \"What's this (word)?\".",
-	option_type = 4,
-	required = False,
-	choices = [
-		create_choice(name = "(word). Example: Mess.", value = 0)
-	]
-),
-create_option(
-	name = "state",
-	description = "Input inflection IF this sentence works: \"You are (word) fucking idiot.\".",
-	option_type = 4,
-	required = False,
-	choices = [
-		create_choice(name = "an (word). Example: Absolute.", value = 0),
-		create_choice(name = "a (word). Example: Real.", value = 1),
-		create_choice(name = "a (word)ed up. Example: Mess.", value = 2)
-	]
-)]
+def exportOptions(optionList, extraChoice = None):
+	send = []
+	for option in optionList.options:
+		choices = option.choices.copy()
+		if extraChoice:
+			choices.insert(0, "None (remove parameter).")
+		for i in range(len(choices)):
+			choices[i] = create_choice(i, choices[i])
+		send.append(create_option(
+			name = option.name,
+			description = option.description,
+			option_type = optionList.option_type,
+			required = optionList.required,
+			choices = choices))
+	return send
 
-def addSlashCommands(client):
+def addSlashCommands(client, guild_ids):
 	guild_ids = [732240720487776356, 746842558180622396]
 	slash = SlashCommand(client, sync_commands = True)
 
@@ -100,7 +38,7 @@ def addSlashCommands(client):
 				required = True
 			),
 			create_option(
-				name = "word",
+				name = "target",
 				description = "Show a specific word from that library. Write the word, or it's row number #.",
 				option_type = 3,
 				required = False
@@ -108,19 +46,19 @@ def addSlashCommands(client):
 		],
 		guild_ids = guild_ids
 	)
-	async def show(ctx, library = "server", word = None): # TODO: Separate libraries from collections (server x's custom library is a library, the default library is a library, 'everything' and 'connected' are collecitons of libraries).
+	async def show(ctx, library = "server", target = None): # TODO: Separate libraries from collections (server x's custom library is a library, the default library is a library, 'everything' and 'connected' are collecitons of libraries).
 		columns = ["word"] + dataModule.wordTypes
 
 		# Selects query and arguments.
-		target = "customLibrary WHERE server = @0"
+		targetX = "customLibrary WHERE server = @0"
 		args = []
 		send = "Showing "
-		if not word is None: # Checks if a specific word is requested.
+		if not target is None: # Checks if a specific word is requested.
 			send += "word "
-			if word.isdigit():
-				send += word + " "
+			if target.isdigit():
+				send += target + " "
 			else:
-				send += "\"" + word + "\" "
+				send += "\"" + target + "\" "
 			send += "from "
 		if library.isdigit():
 			server = client.get_guild(int(library))
@@ -133,7 +71,7 @@ def addSlashCommands(client):
 			send += server.name
 			send += "\"'s "
 		elif library.lower() == "default":
-			target = "defaultLibrary"
+			targetX = "defaultLibrary"
 			columns.insert(1, "severity")
 			send += "the **default** "
 		elif library.lower() == "connected":
@@ -147,7 +85,7 @@ def addSlashCommands(client):
 			for wordType in dataModule.wordTypes:
 				columnString += ", "
 				columnString += wordType
-			target = f"(SELECT word{columnString} FROM {target} UNION ALL SELECT word{columnString} FROM defaultLibrary)"
+			targetX = f"(SELECT word{columnString} FROM {targetX} UNION ALL SELECT word{columnString} FROM defaultLibrary)"
 			send += "this **server**'s word library, the **default** word library *and* every other **connected** server's "
 		elif library == "server":
 			args = [ctx.guild.id]
@@ -167,18 +105,18 @@ def addSlashCommands(client):
 		for column in columns:
 			query += ", "
 			query += column
-		query += " FROM " + target
-		if not word is None and not word.isdigit(): # Changes query if a word is reqested.
+		query += " FROM " + targetX
+		if not target is None and not target.isdigit(): # Changes query if a word is reqested.
 			if library.isdigit() or library.lower() == "server":
 				query += " AND"
 			else:
 				query += " WHERE"
 			query += " word = @" + str(len(args))
-			args.append(word)
+			args.append(target)
 		query += " ORDER BY word"
-		if not word is None and word.isdigit(): # Changes query if a word number is reqested.
+		if not target is None and target.isdigit(): # Changes query if a word number is reqested.
 			query += " LIMIT 1 OFFSET (@" + str(len(args)) + " - 1)"
-			args.append(int(word))
+			args.append(int(target))
 		query += ";"
 		columns.insert(0, "#")
 		
@@ -200,7 +138,7 @@ def addSlashCommands(client):
 				send += "\n```\n" + str(textModule.Word(words[0], library.lower())) + "```"
 			else:
 				send += "\n```\n"
-				if word is None:
+				if target is None:
 					send += "There are no words in this library."
 				else:
 					send += "The word you're looking for could not be found."
@@ -211,13 +149,13 @@ def addSlashCommands(client):
 		base = "words",
 		name = "add",
 		description = "Add a new word to this server's custom word library, and I'll start using it.",
-		options = [
+		options = ([
 			create_option(
 				name = "word",
 				description = "This is the base of the word. Use the other parameters to specify how the word should be used.",
 				option_type = 3,
 				required = True
-			)] + wordParameters,
+			)] + exportOptions(dataModule.optionList)),
 		guild_ids = guild_ids
 	)
 	async def add(ctx, word, **kwargs):
@@ -246,7 +184,7 @@ Check the parameter descriptions and select all options that fit your word.""")
 		
 		await ctx.send(send)
 
-	"""@slash.subcommand(
+	@slash.subcommand(
 		base = "words",
 		name = "update",
 		description = "Change the parameters of an already existing word by entering new ones.",
@@ -262,11 +200,41 @@ Check the parameter descriptions and select all options that fit your word.""")
 				description = "This is the base of the word. Use the other parameters to specify how the word should be used.",
 				option_type = 3,
 				required = False
-			)] + wordParameters,
+			)] + exportOptions(dataModule.optionList, True),
 		guild_ids = guild_ids
 	)
 	async def update(ctx, target, **kwargs):
-		await ctx.send("Not implemented.")"""
+		query = dataModule.findEntries(target)
+		check = dataModule.countEntries(query, [ctx.guild.id, target])
+		if check[2] == 0:
+			send = "**Update aborted**, "
+			if target.isdigit():
+				send += "word number " + target
+			else:
+				send += "the word \"" + target + "\""
+			send += " doesn't exist in this **server**'s custom word library."
+		else:
+			send = "Successfully updated word number " + str(check[0]) + " \"" + check[1] + "\" from this **server**'s custom word library to the following values:\n```"
+			values = ""
+			for index, (key, value) in enumerate(kwargs.items()):
+				send += "\n" + key + ": "
+				if index > 0:
+					values += ", "
+				values += key + " = "
+				if key == "word":
+					values += "\"" + value + "\""
+					send += value
+				else:
+					if value == 0:
+						values += "NULL"
+						send += "None"
+					else:
+						values += str(value - 1)
+						send += str(value - 1)
+			cursor = dataModule.connection.cursor()
+			cursor.execute("UPDATE customLibrary SET " + values + " " + query, [ctx.guild.id, target])
+			send += "\n```"
+		await ctx.send(send)
 
 	@slash.subcommand(
 		base = "words",
@@ -282,18 +250,8 @@ Check the parameter descriptions and select all options that fit your word.""")
 		guild_ids = guild_ids
 	)
 	async def delete(ctx, target):
-		query = "FROM customLibrary WHERE "
-		if target.isdigit():
-			query += "word IN (SELECT word FROM customLibrary WHERE "
-		query += "(server = @0"
-		if target.isdigit():
-			query += ") ORDER BY word LIMIT 1 OFFSET @1 - 1);"
-		else:
-			query += " AND word = @1);"
-		
-		cursor = dataModule.connection.cursor()
-		cursor.execute("SELECT row_number() OVER (ORDER BY word), word, count(*) " + query, [ctx.guild.id, target])
-		check = cursor.fetchone()
+		query = dataModule.findEntries(target)
+		check = dataModule.countEntries(query, [ctx.guild.id, target])
 		if check[2] == 0:
 			send = "**Deletion aborted**, "
 			if target.isdigit():
@@ -304,7 +262,7 @@ Check the parameter descriptions and select all options that fit your word.""")
 		else:
 			send = "Successfully deleted word number " + str(check[0]) + " \"" + check[1] + "\" from "
 			cursor = dataModule.connection.cursor()
-			cursor.execute("DELETE " + query, [ctx.guild.id, target])
+			cursor.execute("DELETE FROM customLibrary " + query, [ctx.guild.id, target])
 			dataModule.connection.commit()
 		send += "this **server**'s custom word library."
 		await ctx.send(send)

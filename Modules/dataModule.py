@@ -1,6 +1,97 @@
 # External Libraries
 import sqlite3
 
+class Option():
+	def __init__(self, name, description, choices = []):
+		self.name = name
+		self.description = description
+		self.choices = choices
+	
+	def __str__(self):
+		return f"{self.name}: {self.description} Choices: {self.choices}"
+	
+	def __repr__(self):
+		return "\n" + str(self)
+
+class OptionList():
+	def __init__(self, option_type, options = [], required = False):
+		self.option_type = option_type
+		self.options = options
+		self.required = required
+	
+	def option(self, name):
+		for option in self.options:
+			if option.name == name:
+				return option
+		return None
+
+	def __str__(self):
+		return f"Type: {self.option_type}, Required: {self.required}, Options: {self.options}."
+
+optionList = OptionList(4, [
+	Option(
+		"adjective",
+		"Input inflection IF this sentence works: \"You are the (word) person ever.\".",
+		[
+			"most (word). Example: Devoid.",
+			"most (word)ic. Example: Idiot.",
+			"most (word)ed up. Example: Mess.",
+			"(word)est. Example: Stupid.",
+			"(word + last letter, so wordd)iest. Example: Crap."
+		]
+	),
+	Option(
+		"binder",
+		"Input inflection IF this sentence works: \"You are very (word) bad.\".",
+		[
+			"(word). Example: Damn.",
+			"(word)ing. Example: Fuck."
+		]
+	),
+	Option(
+		"comment",
+		"Input inflection IF this sentence works: \"What the (word) is this?\".",
+		[
+			"(word). Example: Hell."
+		]
+	),
+	Option(
+		"degree",
+		"Input inflection IF this sentence works: \"You are (word) bad person.\".",
+		[
+			"a (word). Example: Very.",
+			"a (word)ly. Example: Real.",
+			"an (word)ly. Example: Extreme."
+		]
+	),
+	Option(
+		"insult",
+		"Input inflection IF this sentence works: \"You are (word).\".",
+		[
+			"an (word). Example: Idiot.",
+			"a (word). Example: Moron.",
+			"a (word)er. Example: Fuck."
+			"a piece of (word). Example: Shit.",
+		]
+	),
+	Option(
+		"object",
+		"Input inflection IF this sentence works: \"What's this (word)?\".",
+		[
+			"(word). Example: Mess."
+		]
+	),
+	Option(
+		"state",
+		"Input inflection IF this sentence works: \"You are (word) fucking idiot.\".",
+		[
+			"an (word). Example: Absolute.",
+			"a (word). Example: Real.",
+			"a (word)ed up. Example: Mess."
+		]
+	)
+])
+
 # Makes an ascii table out of data.
 def writeTable(data, names = None, maxLengths = [None]):
 	if not names is None:
@@ -46,6 +137,29 @@ def writeTable(data, names = None, maxLengths = [None]):
 				else:
 					send += " "
 	return send
+
+def findEntries(target, library = "customLibrary"):
+	query = "WHERE "
+	if target.isdigit():
+		query += "word IN (SELECT word FROM " + library + " WHERE "
+	if library == "customLibrary":
+		query += "(server = @0"
+	if target.isdigit():
+		if library == "customLibrary":
+			query += ") "
+		query += "ORDER BY word LIMIT 1 OFFSET @1 - 1);"
+	else:
+		if library == "customLibrary":
+			query += " AND "
+		else:
+			query += "("
+		query += "word = @1);"
+	return query
+
+def countEntries(query, args = [], library = "customLibrary"):
+	cursor = connection.cursor()
+	cursor.execute("SELECT row_number() OVER (ORDER BY word), word, count(*) FROM " + library + " " + query, args)
+	return cursor.fetchone()
 
 connection = sqlite3.connect("database.sqlite")
 

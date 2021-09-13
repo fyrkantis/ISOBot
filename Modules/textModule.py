@@ -34,14 +34,19 @@ class Word():
 
 	def __str__(self):
 		send = self.word
-		print(send)
 		if not self.library is None:
 			send += f"\nRow number {self.number} in library \"{self.library}\"."
-		for name, value in self.parameters.items(): # TODO: Add more info about word here.
+		for key, value in self.parameters.items(): # TODO: Add more info about word here.
+			print(key + ": " + str(value))
 			send += "\n"
-			send += name
+			send += key
 			send += ": "
 			send += str(value)
+			if not value is None:
+				option = dataModule.optionList.option(key)
+				if not option is None:
+					send += ", "
+					send += option.choices[value]
 		return send
 
 class Sentence():

@@ -16,8 +16,10 @@ class MyClient(discord.Client):
 	async def on_ready(self):
 		print(f"{self.user} has connected to Discord!")
 		servers = await self.fetch_guilds().flatten()
+		ids = []
 		send = f"Currently connected to {len(servers)} servers: \""
 		for i in range(len(servers)):
+			ids.append(servers[i].id)
 			send += servers[i].name
 			send += "#"
 			send += str(servers[i].id)
@@ -26,8 +28,10 @@ class MyClient(discord.Client):
 			elif i == len(servers) - 2:
 				send += "\" and \""
 			else:
-				send += "\".\n"
+				send += "\"."
 		print(send)
+		inputModule.addSlashCommands(self, ids)
+		print("Successfully added slash commands.")
 	
 	async def on_message(self, message):
 		if not message.author.bot:
@@ -60,5 +64,4 @@ class MyClient(discord.Client):
 				print("Date is ISO-8601 compliant.\n")
 
 client = MyClient()
-inputModule.addSlashCommands(client)
 client.run(TOKEN)
