@@ -1,4 +1,4 @@
-from Modules import dateModule, inputModule, textModule
+from Modules import dateModule, inputModule, textModule, unitModule
 
 # External Libraries
 import os
@@ -35,14 +35,14 @@ class MyClient(discord.Client):
 	
 	async def on_message(self, message):
 		if not message.author.bot:
-
 			dateFormats = []
-			whole = re.findall("(?<!([\\d\\w\\+\\*=\\/\\\\-]))(((\\/|\\\\|\\-|^) *)?(((year|month) *)?((\\d{2,4}|[1-9]) *((st|nd|rd|th) *,? *)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w* *,? *)((month|year|of))*(\\/|\\\\|\\-| ) *){1,2}(((\\d{2,4}|[1-9])( *(st|nd|rd|th)(\\s|$))?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w*))( *(\\/|\\\\|\\-|$))?)(?!([\\d\\w\\+\\*=\\/\\\\-]))", message.content, re.I)
-			if len(whole) > 0:
+			dates = re.findall("(?<!([\\d\\w\\+\\*=\\/\\\\-]))(((\\/|\\\\|\\-|^) *)?(((year|month) *)?((\\d{2,4}|[1-9]) *((st|nd|rd|th) *,? *)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w* *,? *)((month|year|of))*(\\/|\\\\|\\-| ) *){1,2}(((\\d{2,4}|[1-9])( *(st|nd|rd|th)(\\s|$))?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w*))( *(\\/|\\\\|\\-|$))?)(?!([\\d\\w\\+\\*=\\/\\\\-]))", message.content, re.I)
+			units = re.findall("\d+([\.\,]\d+)? *()", message.content, re.I)
+			if len(dates) > 0 or len(units) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
 			
-			for i in range(len(whole)):
-				toAdd = dateModule.DateFormat(whole[i][1])
+			for date in dates:
+				toAdd = dateModule.DateFormat(date[1])
 				print(toAdd)
 				if not toAdd.iso:
 					dateFormats.append(toAdd)
@@ -59,7 +59,7 @@ class MyClient(discord.Client):
 				embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png?size=256") # TODO: Test stability.
 				await message.reply(file = file, embed = embed)
 				print("")
-			elif len(whole) > 0:
+			elif len(dates) > 0:
 				await message.add_reaction("✅")
 				print("Date is ISO-8601 compliant.\n")
 
