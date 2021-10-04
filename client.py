@@ -37,7 +37,7 @@ class MyClient(discord.Client):
 		if not message.author.bot:
 			dateFormats = []
 			dates = re.findall("(?<!([\\d\\w\\+\\*=\\/\\\\-]))(((\\/|\\\\|\\-|^) *)?(((year|month) *)?((\\d{2,4}|[1-9]) *((st|nd|rd|th) *,? *)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w* *,? *)((month|year|of))*(\\/|\\\\|\\-| ) *){1,2}(((\\d{2,4}|[1-9])( *(st|nd|rd|th)(\\s|$))?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w*))( *(\\/|\\\\|\\-|$))?)(?!([\\d\\w\\+\\*=\\/\\\\-]))", message.content, re.I)
-			units = re.findall("\d+([\.\,]\d+)? *()", message.content, re.I)
+			units = re.findall(unitModule.generateCapture(), message.content, re.I)
 			if len(dates) > 0 or len(units) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
 			
@@ -46,6 +46,9 @@ class MyClient(discord.Client):
 				print(toAdd)
 				if not toAdd.iso:
 					dateFormats.append(toAdd)
+			if len(units) > 0:
+				print(units)
+				#await message.reply(f"Found some units: {units}")
 			
 			if len(dateFormats) > 0:
 				sentence = textModule.Sentence(message)

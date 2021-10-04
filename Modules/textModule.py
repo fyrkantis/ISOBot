@@ -111,7 +111,7 @@ SELECT * FROM"""
 
 		# Inflects fetched words.
 		send = ""
-		for i in range(len(wordList)):
+		for i in range(len(wordList)): # TODO: Clean up this mess.
 			word = words.pop(0)
 			inflection = words.pop(0)
 			if wordList[i] == "adjective":
