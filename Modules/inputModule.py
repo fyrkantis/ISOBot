@@ -23,7 +23,7 @@ def exportOptions(optionList, extraChoice = None):
 	return send
 
 def addSlashCommands(client, guild_ids):
-	guild_ids = [732240720487776356, 746842558180622396]
+	guild_ids = [732240720487776356]#, 746842558180622396]
 	slash = SlashCommand(client, sync_commands = True)
 
 	@slash.subcommand(

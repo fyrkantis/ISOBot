@@ -1,5 +1,13 @@
 from . import dataModule
 
+class UnitType():
+	def __init__(self, whole):
+		self.whole = whole
+		self.iso = False
+	
+	def write(self):
+		return f"{self.whole[0]} {self.whole[2]}"
+
 def generateCapture():
 	cursor = dataModule.connection.cursor()
 	cursor.execute("SELECT name, inflection FROM defaultUnits")

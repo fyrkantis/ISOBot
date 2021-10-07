@@ -35,34 +35,40 @@ class MyClient(discord.Client):
 	
 	async def on_message(self, message):
 		if not message.author.bot:
-			dateFormats = []
-			dates = re.findall("(?<!([\\d\\w\\+\\*=\\/\\\\-]))(((\\/|\\\\|\\-|^) *)?(((year|month) *)?((\\d{2,4}|[1-9]) *((st|nd|rd|th) *,? *)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w* *,? *)((month|year|of))*(\\/|\\\\|\\-| ) *){1,2}(((\\d{2,4}|[1-9])( *(st|nd|rd|th)(\\s|$))?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w*))( *(\\/|\\\\|\\-|$))?)(?!([\\d\\w\\+\\*=\\/\\\\-]))", message.content, re.I)
-			units = re.findall(unitModule.generateCapture(), message.content, re.I)
-			if len(dates) > 0 or len(units) > 0:
+			foundDates = re.findall("(?<!([\\d\\w\\+\\*=\\/\\\\-]))(((\\/|\\\\|\\-|^) *)?(((year|month) *)?((\\d{2,4}|[1-9]) *((st|nd|rd|th) *,? *)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w* *,? *)((month|year|of))*(\\/|\\\\|\\-| ) *){1,2}(((\\d{2,4}|[1-9])( *(st|nd|rd|th)(\\s|$))?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\w*))( *(\\/|\\\\|\\-|$))?)(?!([\\d\\w\\+\\*=\\/\\\\-]))", message.content, re.I)
+			foundUnits = re.findall(unitModule.generateCapture(), message.content, re.I)
+			if len(foundDates) > 0 or len(foundUnits) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
 			
-			for date in dates:
+			dates = []
+			for date in foundDates:
 				toAdd = dateModule.DateFormat(date[1])
 				print(toAdd)
 				if not toAdd.iso:
-					dateFormats.append(toAdd)
-			if len(units) > 0:
-				print(units)
-				#await message.reply(f"Found some units: {units}")
+					dates.append(toAdd)
+			units = []
+			for unit in foundUnits:
+				toAdd = unitModule.UnitType(unit)
+				print(toAdd)
+				if not toAdd.iso:
+					units.append(toAdd)
 			
-			if len(dateFormats) > 0:
+			if len(dates) > 0 or len(units) > 0:
 				sentence = textModule.Sentence(message)
 				embed = discord.Embed(title = sentence.title(), description = sentence.subtitle(), color = 0xe4010c)
 				file = discord.File("Assets/warning.png", filename="warning.png")
 				embed.set_thumbnail(url="attachment://warning.png")
 
-				for dateFormat in dateFormats:
-					embed.add_field(name = "**" + dateFormat.writeFormat() + "**", value = sentence.generate(dateFormat), inline = False)
+				for date in dates:
+					embed.add_field(name = f"**{date.write()}**", value = sentence.dateAnalysis(date), inline = False)
+				
+				for unit in units:
+					embed.add_field(name = f"**{unit.write()}**", value = sentence.unitAnalysis(unit), inline = False)
 				
 				embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png?size=256") # TODO: Test stability.
 				await message.reply(file = file, embed = embed)
 				print("")
-			elif len(dates) > 0:
+			else:
 				await message.add_reaction("✅")
 				print("Date is ISO-8601 compliant.\n")
 

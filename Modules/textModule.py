@@ -169,18 +169,18 @@ SELECT * FROM"""
 		
 		return send
 
-	# Analysis of single date
-	def generate(self, dateFormat, shorten = False):
-		dateAlts = dateFormat.dateAlts
-		if len(dateAlts) == 1:
+	# Analysis of single date.
+	def dateAnalysis(self, date, shorten = False):
+		alternatives = date.alternatives
+		if len(alternatives) == 1:
 			send = "This must mean "
 		else:
 			send = "This could mean "
 			send += self.word(["binder", random.randint(0, 1)])
 			send += "anything between:\n"
-		for j in range(len(dateAlts)):
-			dateAlt = dateAlts[j]
-			if len(dateAlts) != 1:
+		for j in range(len(alternatives)):
+			dateAlt = alternatives[j]
+			if len(alternatives) != 1:
 				send += "- "
 			send += "**"
 			send += str(dateAlt.date)
@@ -190,14 +190,14 @@ SELECT * FROM"""
 			send += "formatted as "
 			for k in range(len(dateAlt.tags)):
 				send += "*"
-				send += dateFormat.writeFormat(dateAlt.tags[k])
+				send += date.writeFormat(dateAlt.tags[k])
 				send += "*"
 				if k + 2 < len(dateAlt.tags):
 					send += ", "
 				elif k + 2 == len(dateAlt.tags):
 					send += " or "
 			send += "), "
-			if len(dateAlts) == 1:
+			if len(alternatives) == 1:
 				send += "but it"
 			else:
 				send += "which"
@@ -223,7 +223,7 @@ SELECT * FROM"""
 				start += "fix this date by "
 				send += start[0].upper() + start[1:]
 
-				# Lists everything wrong with the date.
+				# Lists everything wrong with the date. TODO: Move where issues that affect all alternatives are listed.
 				fixes = []
 				if not dateAlt.iso.types:
 					fixes.append("writing the years, months and days as numbers with leading zeros (as in *1969-12-31* or *2021-04-09*)")
@@ -247,15 +247,18 @@ SELECT * FROM"""
 			if shorten:
 				send = send[:1020] + "..."
 			else:
-				send = self.generate(dateFormat, True)
+				send = self.generate(date, True)
 		return send
+	
+	def unitAnalysis(self, unit, shorten = False):
+		return "Idk what tf this is."
 	
 	def title(self):
 		send = ""
 		if random.randint(0, 2) != 0:
-			send += random.choice(["Detected ", "I see ", "How DARE you unleash this "])
+			send += random.choice(["Detected ", "I see ", "How DARE you unleash theese "])
 			send += self.word(["degree", random.randint(0, 1), "binder", random.randint(0, 1), "adjective"])
-			send += "non ISO-8601 compliant "
+			send += "non ISO compliant "
 		else:
 			send += "My "
 			send += self.word(["binder", random.randint(0, 1)])
@@ -263,7 +266,7 @@ SELECT * FROM"""
 			send += random.choice(["bring me nothing but pain", "are cracking", "have never hurt more"])
 			send += " from seeing your "
 			send += self.word(["adjective", random.randint(0, 1)])
-		send += "date formatting:"
+		send += "units:"
 		send = send[0].upper() + send[1:]
 		return send
 	

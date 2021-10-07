@@ -101,6 +101,115 @@ class Date():
 		return self.isoString()
 
 class DateFormat():
+	# Takes date as string and analyzes it.
+	def __init__(self, whole):
+		parts = re.split("(\\d+|\\w+)", whole) 
+
+		# Separates the date into separate parts.
+		# TODO: Add error handling for weird parts lists lengths.
+		index = 1
+		while index < len(parts):
+			if parts[index] == "st" or parts[index] == "nd" or parts[index] == "rd" or parts[index] == "th":
+				parts[index] = "th"
+				parts[(index - 1):(index + 2)] = ["".join(parts[(index - 1):(index + 2)])]
+
+			elif parts[index] == "of" or parts[index] == "year" or parts[index] == "month":
+				parts[(index - 1):(index + 2)] = ["".join(parts[(index - 1):(index + 2)])]
+
+			else:
+				index += 2
+		
+		# Trims ends.
+		parts[0] = parts[0].lstrip()
+		parts[-1] = parts[-1].rstrip()
+		
+		self.inputs = [] # Years, months and days saved as strings.
+		self.values = [] # Years, months and days saved as numbers.
+		self.tags = [] # Tags consist of tokens, ["YYYY", "MM", "DD"] is a tag, "YYYY" is a token.
+		self.lines = [] # Everything between the numbers or month names.
+
+		# Sorts parts into correct categories and labels them.
+		for i in range(len(parts)):
+			if i % 2 == 1:
+				if parts[i].isnumeric():
+					j = len(self.inputs)
+					self.inputs.append(parts[i])
+					self.values.append(int(parts[i]))
+
+					# Figures out what the inputs could mean.
+					self.tags.append(["Y" * len(parts[i])])
+
+					if len(parts[i]) <= 2:
+						if self.values[j] <= 31:
+							if self.values[j] <= 12:
+								self.tags[j].append("M" * len(parts[i]))
+							self.tags[j].append("D" * len(parts[i]))
+					
+				else: # TODO: Add case for written "first", "second", and so on. (frst, scnd)
+					for j in range(len(months)):
+						if parts[i][:3].lower() == months[j][:3].lower():
+							self.inputs.append(parts[i])
+							self.values.append(j + 1)
+
+							if len(parts[i]) <= 3:
+								self.tags.append(["Mon"])
+							else:
+								self.tags.append(["Month"])
+							break
+			else:
+				self.lines.append(parts[i])
+		
+		self.alternatives = []
+		self.iso = self.Iso(lines = self.lines)
+
+		# Tests possible combinations.
+		# TODO: Optimization that removes duplicates of arrays with only one possibility in them.
+		if len(self.tags) > 1:
+			for first in self.tags[0]:
+				for secnd in self.tags[1]:
+					if len(self.tags) > 2:
+						for third in self.tags[2]:
+							if first[0] != secnd[0] and secnd[0] != third[0] and third[0] != first[0]:
+								self.addAlt([first, secnd, third])
+					else:
+						if first[0] != secnd[0] and (first[0] == "M" or secnd[0] == "M"):
+							self.addAlt([first, secnd])
+
+	def addAlt(self, tokens): # TODO: Rethink how incorrect lines are handled.
+		date = Date(tokens, self.values, self.inputs)
+		if date.valid is False:
+			return
+
+		# Tries to find a fitting dateAlt for the tag to be sorted into.
+		for i in range(len(self.alternatives)):
+			if self.alternatives[i].date == date:
+				self.alternatives[i].tags.append(tokens)
+				self.alternatives[i].iso.checkTokens(tokens)
+				self.iso.compareBools(self.alternatives[i].iso)
+				return
+		# Adds another dateAlt if one doesn't already exist.
+		dateAlt = self.Alternative(date, tokens, self.Iso(tokens, self.lines))
+		self.iso.compareBools(dateAlt.iso)
+		self.alternatives.append(dateAlt)
+	
+	# Returns a string of lines with values (or tags if specified) inbetween.
+	def writeFormat(self, tags = None):
+		inputs = self.inputs
+		# Allows inputs to be a class containing both arguments.
+		if tags:
+			inputs = tags
+		send = self.lines[0]
+		for i in range(len(inputs)):
+			send += inputs[i]
+			send += self.lines[i + 1]
+		return send
+	
+	def __str__(self):
+		return f"{self.writeFormat()}, with values {self.values} representing {self.tags}, thus all possible formats are {self.alternatives}. {self.iso}"
+	
+	def __repr__(self):
+		return "\n" + str(self) + "\n"
+	
 	# An analysis of how iso-8601 compliant a date format could be.
 	class Iso():
 		def __init__(self, tokens = None, lines = None):
@@ -160,7 +269,7 @@ class DateFormat():
 			return f"Correct order: {self.order}, types: {self.types}, lines: {self.lines} and spaces: {self.spaces}"
 	
 	# A possible date, with all tag orders resulting in that date.
-	class DateAlt():
+	class Alternative():
 		def __init__(self, date, tokens, iso):
 			self.date = date
 			self.tags = [tokens]
@@ -171,112 +280,3 @@ class DateFormat():
 		
 		def __repr__(self):
 			return str(self)
-
-	# Takes date as string and analyzes it.
-	def __init__(self, whole):
-		parts = re.split("(\\d+|\\w+)", whole) 
-
-		# Separates the date into separate parts.
-		# TODO: Add error handling for weird parts lists lengths.
-		index = 1
-		while index < len(parts):
-			if parts[index] == "st" or parts[index] == "nd" or parts[index] == "rd" or parts[index] == "th":
-				parts[index] = "th"
-				parts[(index - 1):(index + 2)] = ["".join(parts[(index - 1):(index + 2)])]
-
-			elif parts[index] == "of" or parts[index] == "year" or parts[index] == "month":
-				parts[(index - 1):(index + 2)] = ["".join(parts[(index - 1):(index + 2)])]
-
-			else:
-				index += 2
-		
-		# Trims ends.
-		parts[0] = parts[0].lstrip()
-		parts[-1] = parts[-1].rstrip()
-		
-		self.inputs = [] # Years, months and days saved as strings.
-		self.values = [] # Years, months and days saved as numbers.
-		self.tags = [] # Tags consist of tokens, ["YYYY", "MM", "DD"] is a tag, "YYYY" is a token.
-		self.lines = [] # Everything between the numbers or month names.
-
-		# Sorts parts into correct categories and labels them.
-		for i in range(len(parts)):
-			if i % 2 == 1:
-				if parts[i].isnumeric():
-					j = len(self.inputs)
-					self.inputs.append(parts[i])
-					self.values.append(int(parts[i]))
-
-					# Figures out what the inputs could mean.
-					self.tags.append(["Y" * len(parts[i])])
-
-					if len(parts[i]) <= 2:
-						if self.values[j] <= 31:
-							if self.values[j] <= 12:
-								self.tags[j].append("M" * len(parts[i]))
-							self.tags[j].append("D" * len(parts[i]))
-					
-				else: # TODO: Add case for written "first", "second", and so on. (frst, scnd)
-					for j in range(len(months)):
-						if parts[i][:3].lower() == months[j][:3].lower():
-							self.inputs.append(parts[i])
-							self.values.append(j + 1)
-
-							if len(parts[i]) <= 3:
-								self.tags.append(["Mon"])
-							else:
-								self.tags.append(["Month"])
-							break
-			else:
-				self.lines.append(parts[i])
-		
-		self.dateAlts = []
-		self.iso = self.Iso(lines = self.lines)
-
-		# Tests possible combinations.
-		# TODO: Optimization that removes duplicates of arrays with only one possibility in them.
-		if len(self.tags) > 1:
-			for first in self.tags[0]:
-				for secnd in self.tags[1]:
-					if len(self.tags) > 2:
-						for third in self.tags[2]:
-							if first[0] != secnd[0] and secnd[0] != third[0] and third[0] != first[0]:
-								self.addAlt([first, secnd, third])
-					else:
-						if first[0] != secnd[0] and (first[0] == "M" or secnd[0] == "M"):
-							self.addAlt([first, secnd])
-
-	def addAlt(self, tokens): # TODO: Rethink how incorrect lines are handled.
-		date = Date(tokens, self.values, self.inputs)
-		if date.valid is False:
-			return
-
-		# Tries to find a fitting dateAlt for the tag to be sorted into.
-		for i in range(len(self.dateAlts)):
-			if self.dateAlts[i].date == date:
-				self.dateAlts[i].tags.append(tokens)
-				self.dateAlts[i].iso.checkTokens(tokens)
-				self.iso.compareBools(self.dateAlts[i].iso)
-				return
-		# Adds another dateAlt if one doesn't already exist.
-		dateAlt = self.DateAlt(date, tokens, self.Iso(tokens, self.lines))
-		self.iso.compareBools(dateAlt.iso)
-		self.dateAlts.append(dateAlt)
-	
-	# Returns a string of lines with values (or tags if specified) inbetween.
-	def writeFormat(self, tags = None):
-		inputs = self.inputs
-		# Allows inputs to be a class containing both arguments.
-		if tags:
-			inputs = tags
-		send = self.lines[0]
-		for i in range(len(inputs)):
-			send += inputs[i]
-			send += self.lines[i + 1]
-		return send
-	
-	def __str__(self):
-		return f"{self.writeFormat()}, with values {self.values} representing {self.tags}, thus all possible formats are {self.dateAlts}. {self.iso}"
-	
-	def __repr__(self):
-		return "\n" + str(self) + "\n"
