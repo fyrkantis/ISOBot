@@ -192,8 +192,8 @@ class DateFormat():
 		self.iso.compareBools(dateAlt.iso)
 		self.alternatives.append(dateAlt)
 	
-	# Returns a string of lines with values (or tags if specified) inbetween.
-	def writeFormat(self, tags = None):
+	# Returns a string of how the date was originally written.
+	def write(self, tags = None):
 		inputs = self.inputs
 		# Allows inputs to be a class containing both arguments.
 		if tags:
@@ -205,7 +205,7 @@ class DateFormat():
 		return send
 	
 	def __str__(self):
-		return f"{self.writeFormat()}, with values {self.values} representing {self.tags}, thus all possible formats are {self.alternatives}. {self.iso}"
+		return f"{self.write()}, with values {self.values} representing {self.tags}, thus all possible formats are {self.alternatives}. {self.iso}"
 	
 	def __repr__(self):
 		return "\n" + str(self) + "\n"
@@ -266,7 +266,7 @@ class DateFormat():
 			return self.order and self.types and self.lines and self.spaces
 		
 		def __str__(self):
-			return f"Correct order: {self.order}, types: {self.types}, lines: {self.lines} and spaces: {self.spaces}"
+			return f"Correct order: {self.order}, types: {self.types}, lines: {self.lines} and spaces: {self.spaces}."
 	
 	# A possible date, with all tag orders resulting in that date.
 	class Alternative():

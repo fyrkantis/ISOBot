@@ -190,7 +190,7 @@ SELECT * FROM"""
 			send += "formatted as "
 			for k in range(len(dateAlt.tags)):
 				send += "*"
-				send += date.writeFormat(dateAlt.tags[k])
+				send += date.write(dateAlt.tags[k])
 				send += "*"
 				if k + 2 < len(dateAlt.tags):
 					send += ", "

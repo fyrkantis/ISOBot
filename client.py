@@ -68,7 +68,7 @@ class MyClient(discord.Client):
 				embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png?size=256") # TODO: Test stability.
 				await message.reply(file = file, embed = embed)
 				print("")
-			else:
+			elif len(foundDates) > 0 and len(dates) <= 0:
 				await message.add_reaction("✅")
 				print("Date is ISO-8601 compliant.\n")
 
