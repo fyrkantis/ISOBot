@@ -4,7 +4,7 @@ from . import dataModule
 import random
 from datetime import datetime, timedelta
 
-class Word():
+class Word(): # Currently only used for organization in in inputModule.py.
 	def __init__(self, parameters, library = None):
 		print(parameters)
 		self.library = library
@@ -247,11 +247,24 @@ SELECT * FROM"""
 			if shorten:
 				send = send[:1020] + "..."
 			else:
-				send = self.generate(date, True)
+				send = self.dateAnalysis(date, True)
 		return send
 	
 	def unitAnalysis(self, unit, shorten = False):
-		return "Idk what tf this is."
+		send = ""
+		if random.randint(0, 1) == 0:
+			send += "Which should be written "
+		else:
+			send += "I think you meant to say "
+		send += f"\"{unit.isoString()}\""
+
+		# Shortens date (crudely if needed) if it's too long.
+		if len(send) > 1024:
+			if shorten:
+				send = send[:1020] + "..."
+			else:
+				send = self.unitAnalysis(date, True)
+		return send
 	
 	def title(self):
 		send = ""
