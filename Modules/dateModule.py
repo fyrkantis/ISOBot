@@ -160,7 +160,7 @@ class DateFormat():
 				self.lines.append(parts[i])
 		
 		self.alternatives = []
-		self.iso = self.Iso(lines = self.lines)
+		self.iso = self.Iso(lines = self.lines) # Everything that's wrong with all alternatives no matter what.
 
 		# Tests possible combinations.
 		# TODO: Optimization that removes duplicates of arrays with only one possibility in them.
@@ -218,9 +218,9 @@ class DateFormat():
 			self.lines = False
 			self.spaces = False
 
-			if tokens:
+			if not tokens is None:
 				self.checkTokens(tokens)
-			if lines:
+			if not lines is None:
 				self.checkLines(lines)
 
 		def checkTokens(self, tokens):
@@ -255,11 +255,12 @@ class DateFormat():
 				if not self.spaces and isoSpaces:
 					self.spaces = True
 		
-		def compareBools(self, compare): # Maybe not necessary.
-			self.order = self.order or compare.order
-			self.types = self.types or compare.types
-			self.lines = self.lines or compare.lines
-			self.spaces = self.spaces or compare.spaces
+		# Updates self so that it also applies to other iso.
+		def compareBools(self, compare):
+			if not self.order:
+				self.order = compare.order
+			if not self.types:
+				self.types = compare.types
 		
 		# Returns if iso is possible
 		def __bool__(self):

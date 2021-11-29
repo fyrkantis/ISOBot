@@ -90,24 +90,17 @@ SELECT * FROM"""
 					joinOn += "\nON"
 				elif i > 1:
 					joinOn += " AND"
-				joinOn += " t"
-				joinOn += str(i - 1)
-				joinOn += ".word != t"
-				joinOn += str(i)
-				joinOn += ".word"
-			query += "\n	(SELECT word, "
-			query += wordList[i]
-			query += " FROM t WHERE "
-			query += wordList[i]
-			query += " NOT NULL LIMIT 1) AS t"
-			query += str(i)
+				joinOn += f" t{i - 1}.word != t{i}.word"
+			query += f"\n	(SELECT word, {wordList[i]} FROM t WHERE {wordList[i]} NOT NULL LIMIT 1) AS t{i}"
 		query += joinOn
 
-		# Executes query.
-		cursor = dataModule.connection.cursor()
-		cursor.execute(query, [self.message.guild.id])
-		allWords = cursor.fetchall()
-		words = list(allWords[0])
+		words = None
+		while words is None:
+			# Executes query.
+			cursor = dataModule.connection.cursor()
+			cursor.execute(query, [self.message.guild.id])
+			words = cursor.fetchone()
+		words = list(words)
 
 		# Inflects fetched words.
 		send = ""
@@ -172,10 +165,15 @@ SELECT * FROM"""
 	# Analysis of single date.
 	def dateAnalysis(self, date, shorten = False):
 		alternatives = date.alternatives
+		send = ""
+		feedback = self.isoFeedback(date.iso)
+		if not feedback == "":
+			send += f"You should fix this date by {feedback}.\n"
+
 		if len(alternatives) == 1:
-			send = "This must mean "
+			send += "This must mean "
 		else:
-			send = "This could mean "
+			send += "This could mean "
 			send += self.word(["binder", random.randint(0, 1)])
 			send += "anything between:\n"
 		for j in range(len(alternatives)):
@@ -216,31 +214,16 @@ SELECT * FROM"""
 					send += self.word(["degree", random.randint(0, 1), "binder", random.randint(0, 1), "adjective"]).rstrip()
 			send += ".\n"
 			if not shorten:
-				start = ""
-				if random.randint(0, 1) == 0:
-					start += "You better "
-				start += self.word(["binder", random.randint(0, 1)])
-				start += "fix this date by "
-				send += start[0].upper() + start[1:]
-
-				# Lists everything wrong with the date. TODO: Move where issues that affect all alternatives are listed.
-				fixes = []
-				if not dateAlt.iso.types:
-					fixes.append("writing the years, months and days as numbers with leading zeros (as in *1969-12-31* or *2021-04-09*)")
-				if not dateAlt.iso.order:
-					fixes.append("ordering the numbers correctly (as in *year-month-day*)")
-				if not dateAlt.iso.lines:
-					fixes.append("only using lines - as separators (as in *YYYY-MM-DD*)")
-				if not dateAlt.iso.spaces:
-					fixes.append("not using any spaces whatsoever")
-				
-				for j in range(len(fixes)):
-					send += fixes[j]
-					if j + 2 < len(fixes):
-						send += ", "
-					elif j + 2 == len(fixes):
-						send += " and "
-				send += ".\n"
+				altFeedback = self.isoFeedback(dateAlt.iso, date.iso)
+				if not altFeedback == "":
+					start = ""
+					if random.randint(0, 1) == 0:
+						start += "You should "
+					start += self.word(["binder", random.randint(0, 1)])
+					start += "fix this date by "
+					send += start[0].upper() + start[1:]
+					send += altFeedback
+					send += ".\n"
 		
 		# Shortens date (crudely if needed) if it's too long.
 		if len(send) > 1024:
@@ -248,6 +231,27 @@ SELECT * FROM"""
 				send = send[:1020] + "..."
 			else:
 				send = self.dateAnalysis(date, True)
+		return send
+	
+	def isoFeedback(self, iso, negatedIso = None): # negatedIso is used to filter feedback that has already been mentioned.
+		# Lists everything wrong with the date.
+		fixes = []
+		if not iso.types and (negatedIso is None or negatedIso.types):
+			fixes.append("writing the years, months and days as numbers with leading zeros (as in *1969-12-31* or *2021-04-09*)")
+		if not iso.order and (negatedIso is None or negatedIso.order):
+			fixes.append("ordering the numbers correctly (as in *year-month-day*)")
+		if not iso.lines and (negatedIso is None or negatedIso.lines):
+			fixes.append("only using lines - as separators (as in *YYYY-MM-DD*)")
+		if not iso.spaces and (negatedIso is None or negatedIso.spaces):
+			fixes.append("not using any spaces whatsoever")
+		
+		send = ""
+		for j in range(len(fixes)):
+			send += fixes[j]
+			if j + 2 < len(fixes):
+				send += ", "
+			elif j + 2 == len(fixes):
+				send += " and "
 		return send
 	
 	def unitAnalysis(self, unit, shorten = False):
@@ -263,7 +267,7 @@ SELECT * FROM"""
 			if shorten:
 				send = send[:1020] + "..."
 			else:
-				send = self.unitAnalysis(date, True)
+				send = self.unitAnalysis(unit, True)
 		return send
 	
 	def title(self):
