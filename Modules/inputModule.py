@@ -1,5 +1,5 @@
 import discord
-from . import dataModule, textModule
+from . import dataModule
 
 # External Libraries
 from datetime import datetime
@@ -135,7 +135,7 @@ def addSlashCommands(client, guild_ids):
 				await ctx.send(send, file = discord.File(file, "libraryContents.txt"))
 		else:
 			if len(words) > 0:
-				send += "\n```\n" + str(textModule.Word(words[0], library.lower())) + "```"
+				send += "\n```\n" + str(dataModule.Word(words[0], library.lower())) + "```"
 			else:
 				send += "\n```\n"
 				if target is None:
