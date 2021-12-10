@@ -6,10 +6,10 @@ import math
 siUnits = {
 	"length": "meter",
 	"mass": "gram",
-	"energy": "joule",
+	"energy": "Joule",
 	"time": "second",
-	"pressure": "pascal",
-	"power": "watt"
+	"force": "Newton",
+	"power": "Watt"
 }
 
 siPrefixes = {
@@ -17,99 +17,164 @@ siPrefixes = {
 	"milli": -3, "micro": -6, "nano": -9, "pico": -12, "femto": -15, "atto": -18, "zepto": -21, "yocto": -24
 }
 
-class UnitType():
+class BaseUnit():
+	rawAmount = None # String of the amount as inputted.
+	name = None # Name of the unit.
+	amount = None # rawAmount as a number.
+	conversion = 1 # This multiplied by the amount is the amount in the corresponding SI unit.
+	unitType = None # Shorthand for if this is a unit of lenght, mass or other.
+	
+	def selectSelf(self):
+		search = self.name
+		if self.name == "\'":
+			search = "foot"
+		elif self.name == "\'\'":
+			search = "inch"
+		cursor = dataModule.connection.cursor()
+		cursor.execute("""SELECT type, conversion, base FROM defaultUnits
+WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
+LIMIT 1;""", [search])
+		result = cursor.fetchone()
+		cursor.close()
+		if not result is None:
+			self.unitType = result[0]
+			self.conversion = result[1] * 10 ** result[2]
+		else:
+			print(f"ERROR: Couldn't find unit \"{self.name}\" in database.")
+
+class Unit(BaseUnit):
 	def __init__(self, whole):
 		print(whole)
-		self.name = whole[3]
+		self.rawAmount = whole[0] # Saves the unit amount.
 		self.iso = self.Iso()
-		self.iso.unit = False
+		self.iso.convertAmount(self) # Creates self.amount from self.rawAmount, and checks if its iso.
+		self.name = whole[1]
+		self.secondUnit = None # This is a special case for 5'6'' and similar.
 
-		# Checks if the unit could be SI.
-		for value in siUnits.values():
-			if self.name == value or self.name == pluralUnit(value):
-				self.iso.unit = True
-				break
-
-		# Gradually converts amount while checking how its formatted.
-		self.input = whole[1] # "123,456.789"
-		self.iso.punctuation = self.input.count(",") <= 0
-
-		self.amount = self.input.replace(",", ".") # "123.456.789"
-		self.iso.digitGrouping = self.amount.count(".") <= 1
-
-		self.amount = self.amount.rsplit(".", 1) # ["123.456", "789"]
-		self.amount = int(self.amount[0].replace(".", "")) + int(self.amount[-1]) / 10 ** len(self.amount[-1]) # 123456 + 0.789 = 123456.789
-	
-	def write(self):
-		return f"{self.input} {self.name}"
+		if whole[2] in ["\'", "\'\'"]:
+			self.iso.unit = False
+			self.name = whole[2]
+			self.secondUnit = self.iso.convertAmount(self.SecondUnit(whole[3], whole[4]))
+			if self.secondUnit.name == "":
+				if self.name == "\'":
+					self.secondUnit.name = "\'\'"
+				else:
+					self.secondUnit.name = "\'"
+			self.secondUnit.selectSelf()
+		else:
+			# Checks if the unit could be SI.
+			self.iso.unit = False
+			for key, value in siUnits.items():
+				if self.name == value or self.name == pluralUnit(value):
+					self.iso.unit = True
+					self.unitType = key
+					break
+		
+		if self.unitType is None:
+			self.selectSelf()
 	
 	def isoString(self):
-		if self.iso.unit:
-			return f"{self.amount} {pluralUnit(self.name)}"
+		total = self.amount * self.conversion
+		if not self.secondUnit is None:
+			total += self.secondUnit.amount * self.secondUnit.conversion
+		return f"{significantFigures(total)} {siUnits[self.unitType]}s"
+	
+	def write(self):
+		if self.secondUnit is None:
+			return f"{self.rawAmount} {self.name}"
 		else:
-			cursor = dataModule.connection.cursor()
-			cursor.execute(f"""SELECT type, conversion, base FROM defaultUnits
-WHERE @0 IN (name, pluralUnit(name, inflection), prefix)
-LIMIT 1;""", [self.name])
-			result = cursor.fetchone()
-			if result is None:
-				print(f"ERROR: Couldn't find \"{self.name}\" in database.")
-				return f"ERROR {self.name}"
-			cursor.close()
-			return f"{significantFigures(self.amount * result[1] * 10 ** result[2])} {pluralUnit(getSiUnit(result[0]))}"
+			return self.rawAmount + self.name + self.secondUnit.write()
 	
 	def __str__(self):
-		return self.write()
+		return f"\"{self.write()}\" {self.amount} {self.unitType} unit(s) with conversion {self.conversion}.\nSecond unit: {self.secondUnit}\n{self.iso}"
 	
-	class Iso():
-		def __init__(self):
-			self.unit = False
-			self.punctuation = False
-			self.digitGrouping = False
+	class SecondUnit(BaseUnit):
+		def __init__(self, rawAmount, name):
+			self.rawAmount = rawAmount
+			self.name = name
 		
-		def __bool__(self):
-			return self.unit and self.punctuation and self.digitGrouping
+		def write(self):
+			return self.rawAmount + self.name
 		
 		def __str__(self):
-			return f"Correct unit: {self.unit}, punctuation: {self.punctuation}, digit grouping: {self.digitGrouping}."
+			return f"\"{self.write()}\" {self.amount} {self.unitType} sub unit(s) with conversion {self.conversion}."
+	
+	class Iso():
+		unit = None
+		punctuation = None
+		separators = None
+		digitGrouping = None
+		
+		# Converts rawAmount to amount while checking how its formatted.
+		def convertAmount(self, target): # "123,456.789"
+			self.punctuation = target.rawAmount.count(",") <= 0
+			
+			parts = target.rawAmount.replace(",", ".") # "123.456.789"
+			self.separators = parts.count(".") <= 1
+
+			parts = parts.rsplit(".", 1) # ["123.456", "789"]
+			if "." in parts[0]:
+				self.separators = False
+			
+			self.digitGrouping = True
+			parts[0] = parts[0].replace(".", " ") # ["123 456", "789"]
+			for i, part in enumerate(parts[0].split(" ")):
+				if i > 0 and not len(part) == 3:
+					self.digitGrouping = False
+					break
+			
+			target.amount = int(parts[0].replace(" ", "").replace(" ", "")) # 123456
+			if len(parts) > 1:
+				target.amount += int(parts[-1]) / 10 ** len(parts[-1]) # 123456 + 0.789 = 123456.789
+			return target
+
+		def __bool__(self):
+			return self.unit and self.punctuation and self.separators and self.digitGrouping
+		
+		def __str__(self):
+			return f"Correct unit: {self.unit}, punctuation: {self.punctuation}, separators: {self.separators}, digit grouping: {self.digitGrouping}."
 
 def generateCapture():
 	cursor = dataModule.connection.cursor()
 	cursor.execute("SELECT name, inflection, prefix FROM defaultUnits")
-	inflections = [] # A list of lists of all unit names and prefixes, indexed by inflection.
-	prefixes = [] # A list of all prefixes.
+	inflections = [[]] # A list of lists of all unit names and prefixes, indexed by inflection.
+	prefixString = r""
+	for unit in siUnits.values():
+		inflections[0].append(unit)
+		prefixString += r"|" + unit[0]
 	for unit in cursor.fetchall():
 		while len(inflections) <= unit[1]:
 			inflections.append([])
 		inflections[unit[1]].append(unit[0])
 		if not unit[2] is None:
-			for prefix in unit[2].split():
-				prefixes.append(prefix)
+			prefixString += r"|" + unit[2]
 
-	unitString = ""
+	unitString = r""
 	for inflection, units in enumerate(inflections):
 		if len(units) > 0:
-			if not unitString == "":
+			if not unitString == r"":
 				unitString += r"|"
-			unitString += r"("
+			if inflection < 2:
+				unitString += r"(?:"
 			for i, unit in enumerate(units):
 				if i > 0:
 					unitString += r"|"
 				unitString += unit
-			unitString += r")"
+			if inflection < 2:
+				unitString += r")"
+				
 			if inflection == 0:
 				unitString += r"s?"
 			elif inflection == 1:
-				unitString += r"(es)?"
+				unitString += r"(?:es)?"
 			elif inflection == 2:
-				unitString += r"|("
+				unitString += r"|"
 				for i, unit in enumerate(units):
 					if i > 0:
 						unitString += r"|"
 					unitString += unit.replace("o", "e").replace("O", "E")
-				unitString += r")"
 
-	return r"((\d+([\.\, ]\d+)*) *(((" + r"|".join(siUnits.values()) + r")s?)|(" + unitString + r")|(" + r"|".join(prefixes) + r")))"
+	return r"(\d+(?:[\.\, ]\d+)*) *(" + unitString + prefixString + r"|(''?)(?: *(\d+(?:\.\, ]\d+)*) *(''?)?)?)"
 
 def getSiUnit(unitType):
 	if unitType == "area":
@@ -122,6 +187,8 @@ def getSiUnit(unitType):
 # https://www.kite.com/python/answers/how-to-round-a-number-to-significant-digits-in-python
 # https://stackoverflow.com/a/55975216/13347795
 def significantFigures(value, figures = 3):
+	if value == 0:
+		return 0
 	return f"{round(value, figures - int(math.floor(math.log10(abs(value)))) - 1):g}"
 
 def pluralUnit(name, inflection = 0):

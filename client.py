@@ -35,7 +35,7 @@ class MyClient(discord.Client):
 	
 	async def on_message(self, message):
 		if not message.author.bot:
-			foundDates = re.findall(r"(?<!([\d\w\+\*=\/\\-]))(((\/|\\|\-|^) *)?(((year|month) *)?((\d{2,4}|[1-9]) *((st|nd|rd|th) *,? *)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w* *,? *)((month|year|of))*(\/|\\|\-| ) *){1,2}(((\d{2,4}|[1-9])( *(st|nd|rd|th)(\s|$))?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))( *(\/|\\|-|$))?)(?!([\d\w\+\*=\/\\-]))", message.content, re.I)
+			foundDates = re.findall(r"(?<!([\d\w\+\*=\/\\-]))(((\/|\\|\-|^) *)?(((year|month) *)?((\d{2,4}|[1-9]) *((st|nd|rd|th) *,? *)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w* *,? *)((month|year|of))*(\/|\\|\-) *){1,2}(((\d{2,4}|[1-9])( *(st|nd|rd|th)(\s|$))?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))( *(\/|\\|-|$))?)(?!([\d\w\+\*=\/\\-]))", message.content, re.I)
 			foundUnits = re.findall(unitModule.generateCapture(), message.content, re.I)
 			if len(foundDates) > 0 or len(foundUnits) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
@@ -48,7 +48,7 @@ class MyClient(discord.Client):
 						dates.append(toAdd)
 				units = []
 				for unit in foundUnits:
-					toAdd = unitModule.UnitType(unit)
+					toAdd = unitModule.Unit(unit)
 					print(toAdd)
 					if not toAdd.iso:
 						units.append(toAdd)
@@ -79,6 +79,7 @@ try:
 except discord.errors.HTTPException as e:
 	print(f"Tried to run client but received \"{e}\" from discord:")
 	print(f"Response: {e.response}")
+#https://stackoverflow.com/questions/67268074/discord-py-429-rate-limit-what-does-not-making-requests-on-exhausted-buckets
 #{e.response['message']}
 #Time left: {e.response['retry_after']}
 #Global rate limit: {e.response['global']}""")
