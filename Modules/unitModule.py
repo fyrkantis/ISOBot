@@ -25,15 +25,10 @@ class BaseUnit():
 	unitType = None # Shorthand for if this is a unit of lenght, mass or other.
 	
 	def selectSelf(self):
-		search = self.name
-		if self.name == "\'":
-			search = "foot"
-		elif self.name == "\'\'":
-			search = "inch"
 		cursor = dataModule.connection.cursor()
 		cursor.execute("""SELECT type, conversion, base FROM defaultUnits
 WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
-LIMIT 1;""", [search])
+LIMIT 1;""", [self.name])
 		result = cursor.fetchone()
 		cursor.close()
 		if not result is None:
@@ -51,15 +46,16 @@ class Unit(BaseUnit):
 		self.name = whole[1]
 		self.secondUnit = None # This is a special case for 5'6'' and similar.
 
-		if whole[2] in ["\'", "\'\'"]:
+		if whole[1] != whole[2] and whole[2] in ["\'", "\'\'"]:
 			self.iso.unit = False
 			self.name = whole[2]
+
 			self.secondUnit = self.iso.convertAmount(self.SecondUnit(whole[3], whole[4]))
 			if self.secondUnit.name == "":
 				if self.name == "\'":
-					self.secondUnit.name = "\'\'"
+					self.secondUnit.name = "inch"
 				else:
-					self.secondUnit.name = "\'"
+					self.secondUnit.name = "foot"
 			self.secondUnit.selectSelf()
 		else:
 			# Checks if the unit could be SI.
@@ -69,6 +65,10 @@ class Unit(BaseUnit):
 					self.iso.unit = True
 					self.unitType = key
 					break
+		if self.name == "\'":
+			self.name = "foot"
+		elif self.name in ["\'\'", "\""]:
+			self.name = "inch"
 		
 		if self.unitType is None:
 			self.selectSelf()
@@ -83,7 +83,7 @@ class Unit(BaseUnit):
 		if self.secondUnit is None:
 			return f"{self.rawAmount} {self.name}"
 		else:
-			return self.rawAmount + self.name + self.secondUnit.write()
+			return f"{self.rawAmount} {self.name} {self.secondUnit.write()}"
 	
 	def __str__(self):
 		return f"\"{self.write()}\" {self.amount} {self.unitType} unit(s) with conversion {self.conversion}.\nSecond unit: {self.secondUnit}\n{self.iso}"
@@ -92,9 +92,13 @@ class Unit(BaseUnit):
 		def __init__(self, rawAmount, name):
 			self.rawAmount = rawAmount
 			self.name = name
+			if self.name == "\'":
+				self.name = "foot"
+			elif self.name in ["\'\'", "\""]:
+				self.name = "inch"
 		
 		def write(self):
-			return self.rawAmount + self.name
+			return f"{self.rawAmount} {self.name}"
 		
 		def __str__(self):
 			return f"\"{self.write()}\" {self.amount} {self.unitType} sub unit(s) with conversion {self.conversion}."
