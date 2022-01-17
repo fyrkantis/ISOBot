@@ -51,10 +51,11 @@ class Word(): # Currently only used for organization in in inputModule.py.
 			parameters = parameters[1:]
 
 		self.parameters = {}
-		for i in range(len(dataModule.wordTypes)):
+		global wordTypes
+		for i in range(len(wordTypes)):
 			if i >= len(parameters):
 				parameters.append(None)
-			self.parameters.update({dataModule.wordTypes[i]: parameters[i]})
+			self.parameters.update({wordTypes[i]: parameters[i]})
 
 	def __str__(self):
 		send = self.word
@@ -67,7 +68,8 @@ class Word(): # Currently only used for organization in in inputModule.py.
 			send += ": "
 			send += str(value)
 			if not value is None:
-				option = dataModule.optionList.option(key)
+				global optionList
+				option = optionList.option(key)
 				if not option is None:
 					send += ", "
 					send += option.choices[value]
