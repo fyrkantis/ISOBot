@@ -167,7 +167,7 @@ SELECT * FROM"""
 					start += self.word(["binder", randint(0, 1)]) + "fix this date by "
 					send += start[0].upper() + start[1:] + altFeedback + ".\n"
 		
-		# Shortens date (crudely if needed) if it's too long.
+		# Shortens message (crudely if needed) if it's too long.
 		if len(send) > 1024:
 			if shorten:
 				send = send[:1020] + "..."
@@ -178,8 +178,6 @@ SELECT * FROM"""
 	def isoFeedback(self, iso, negatedIso = None): # negatedIso is used to filter feedback that has already been mentioned.
 		# Lists everything wrong with the date.
 		fixes = []
-		if not iso.types and (negatedIso is None or negatedIso.types):
-			fixes.append(f"writing the years, months and days as numbers with {self.word(['binder', randint(0, 1)])}leading zeros (as in *1969-12-31* or *2021-04-09*)")
 		if not iso.order and (negatedIso is None or negatedIso.order):
 			if randint(0, 1) == 0:
 				fixes.append(f"ordering the numbers {self.word(['binder', randint(0, 1)])}correctly (as in *year-month-day*)")
@@ -187,6 +185,8 @@ SELECT * FROM"""
 				fixes.append(f"ordering the numbers less {self.word(['binder', randint(0, 1), 'adjective'])}(as in *year-month-day*)")
 		if not iso.lines and (negatedIso is None or negatedIso.lines):
 			fixes.append("only using lines - as separators (as in *YYYY-MM-DD*)")
+		if not iso.types and (negatedIso is None or negatedIso.types):
+			fixes.append(f"writing the years, months and days as numbers with {self.word(['binder', randint(0, 1)])}leading zeros (as in *1969-12-31* or *2021-04-09*)")
 		if not iso.spaces and (negatedIso is None or negatedIso.spaces):
 			fixes.append(f"not using any {self.word('binder', randint(0, 1))} spaces whatsoever")
 		
@@ -217,20 +217,20 @@ SELECT * FROM"""
 			send += f"\nDon't use *{unit.name}*"
 			if randint(0, 1) == 0:
 				randomBinder = randint(0, 1)
-				send += f", you {self.word(['adjective', randint(0, randomBinder), 'binder', randomBinder, 'adjective', randint(0, 1), 'insult'])}"
+				send += f", you {self.word(['adjective', randint(0, randomBinder), 'binder', randomBinder, 'adjective', randint(0, 1), 'insult'])[:-1]}"
 			send += "!"
 		else:
 			send += "\nWhy "
 			randomComment = randint(0, 1)
 			randomState = randint(0, randomComment)
-			if randomState:
+			if randomState > 0:
 				send += "in "
-			if randomComment:
+			if randomComment > 0:
 				send += "the "
-			send += self.word(['state', randomState, 'binder', randint(0, 1), 'comment', randomComment])
+			send += self.word(['state', randomState, 'binder', randomState, randint(0, 1), 'comment', randomComment])
 			send += f"are you using *{unit.name}*!?"
 
-		# Shortens date (crudely if needed) if it's too long.
+		# Shortens message (crudely if needed) if it's too long.
 		if len(send) > 1024:
 			if shorten:
 				send = send[:1020] + "..."

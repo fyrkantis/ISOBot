@@ -2,6 +2,7 @@ from . import dataModule
 
 # External libraries
 import math
+import re
 
 siUnits = {
 	"length": "meter",
@@ -35,7 +36,7 @@ LIMIT 1;""", [self.name])
 			self.unitType = result[0]
 			self.conversion = result[1] * 10 ** result[2]
 		else:
-			print(f"ERROR: Couldn't find unit \"{self.name}\" in database.")
+			print(f"Couldn't find unit \"{self.name}\" in database.")
 
 class Unit(BaseUnit):
 	def __init__(self, whole):
@@ -138,7 +139,7 @@ class Unit(BaseUnit):
 		def __str__(self):
 			return f"Correct unit: {self.unit}, punctuation: {self.punctuation}, separators: {self.separators}, digit grouping: {self.digitGrouping}."
 
-def generateCapture():
+def generatePattern():
 	cursor = dataModule.connection.cursor()
 	cursor.execute("SELECT name, inflection, prefix FROM defaultUnits")
 	inflections = [[]] # A list of lists of all unit names and prefixes, indexed by inflection.
@@ -178,7 +179,7 @@ def generateCapture():
 						unitString += r"|"
 					unitString += unit.replace("o", "e").replace("O", "E")
 
-	return r"(\d+(?:[\.\, ]\d+)*) *(" + unitString + prefixString + r"|(''?)(?: *(\d+(?:\.\, ]\d+)*) *(''?)?)?)"
+	return re.compile(r"(\d+(?:[\.\, ]\d+)*) *(" + unitString + prefixString + r"|(''?)(?: *(\d+(?:\.\, ]\d+)*) *(''?)?)?)", re.IGNORECASE)
 
 def getSiUnit(unitType):
 	if unitType == "area":

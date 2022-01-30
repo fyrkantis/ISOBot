@@ -2,7 +2,6 @@ from Modules import dateModule, inputModule, textModule, unitModule
 
 # External Libraries
 import os
-import re
 import discord
 
 from dotenv import load_dotenv
@@ -35,23 +34,41 @@ class MyClient(discord.Client):
 	
 	async def on_message(self, message):
 		if not message.author.bot:
-			foundDates = re.findall(r"(?<!([\d\w\+\*=\/\\-]))(((\/|\\|\-|^) *)?(((year|month) *)?((\d{2,4}|[1-9]) *((st|nd|rd|th) *,? *)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w* *,? *)((month|year|of))*(\/|\\|\-) *){1,2}(((\d{2,4}|[1-9])( *(st|nd|rd|th)(\s|$))?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))( *(\/|\\|-|$))?)(?!([\d\w\+\*=\/\\-]))", message.content, re.I)
-			foundUnits = re.findall(unitModule.generateCapture(), message.content, re.I)
+			foundDates = dateModule.pattern.findall(message.content)
+			foundUnits = unitModule.generatePattern().findall(message.content)
+			foundIso = False
 			if len(foundDates) > 0 or len(foundUnits) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
-				
+				print(foundDates)
 				dates = []
 				for date in foundDates:
-					toAdd = dateModule.DateFormat(date[1])
-					print(toAdd)
-					if not toAdd.iso:
-						dates.append(toAdd)
+					toAdd = dateModule.DateFormat(date)
+					print(toAdd, end = " ")
+					if toAdd.iso:
+						foundIso = True
+						print("ISO format.")
+						continue
+					if len(toAdd.alternatives) <= 0:
+						print("Definitively not a date.")
+						continue
+					if len(toAdd.tags) <= 2 and not (["Mon"] in toAdd.tags or ["Month" in toAdd.tags]): # TODO: Replace with less jank solution that actually works.
+						print("Maybe not a date.")
+						continue
+					print("Wrong format")
+					dates.append(toAdd)
 				units = []
 				for unit in foundUnits:
 					toAdd = unitModule.Unit(unit)
-					print(toAdd)
-					if not toAdd.iso:
-						units.append(toAdd)
+					print(toAdd, end = ": ")
+					if toAdd.iso:
+						foundIso = True
+						print("ISO unit.")
+						continue
+					if toAdd.unitType is None:
+						print("Not a unit.")
+						continue
+					print("Wrong unit.")
+					units.append(toAdd)
 				
 				if len(dates) > 0 or len(units) > 0:
 					sentence = textModule.Sentence(message)
@@ -68,7 +85,7 @@ class MyClient(discord.Client):
 					embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png?size=256") # TODO: Test stability.
 					await message.reply(file = file, embed = embed)
 					print("")
-				else:
+				elif foundIso:
 					await message.add_reaction("✅")
 					print("Date is ISO-8601 compliant.\n")
 

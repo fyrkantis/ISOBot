@@ -2,6 +2,8 @@
 import re
 
 months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+#(?<!(?P<look>(?P<line>[\/\\\-])|[\d\w\+\*=]))(?P<first>(?P<value>(?P<number>\d{1,4})|(?P<month>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<second>(?P<middle> *(?:\g<line>|(?:st|nd|rd|th)?(?: *(,|of|month|year)?)*) *)\g<value>)(?P<third>\g<middle>\g<value>)?(?!\g<look>)
+pattern = re.compile(r"(?<!(?:[\/\\\-\d\w\+\*=]))(?:(?P<number1>\d{1,4})|(?P<month1>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle1> *(?:[\/\\\-]|(?:st|nd|rd|th)?(?: *(?:,|of|the|month|year)?)*) *)(?:(?P<number2>\d{1,4})|(?P<month2>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle2> *(?:[\/\\\-]|(?:st|nd|rd|th)?(?: *(?:,|of|the|month|year)?)*) *)(?:(?P<number3>\d{1,4})|(?P<month3>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))?(?!(?:[\/\\\-\d\w\+\*=]))", re.IGNORECASE)
 
 class Date():
 	def __init__(self, tokens, values, inputs = None):
@@ -102,62 +104,23 @@ class Date():
 
 class DateFormat():
 	# Takes date as string and analyzes it.
-	def __init__(self, whole):
-		parts = re.split("(\\d+|\\w+)", whole) 
-
-		# Separates the date into separate parts.
-		# TODO: Add error handling for weird parts lists lengths.
-		index = 1
-		while index < len(parts):
-			if parts[index] == "st" or parts[index] == "nd" or parts[index] == "rd" or parts[index] == "th":
-				parts[index] = "th"
-				parts[(index - 1):(index + 2)] = ["".join(parts[(index - 1):(index + 2)])]
-
-			elif parts[index] == "of" or parts[index] == "year" or parts[index] == "month":
-				parts[(index - 1):(index + 2)] = ["".join(parts[(index - 1):(index + 2)])]
-
-			else:
-				index += 2
-		
-		# Trims ends.
-		parts[0] = parts[0].lstrip()
-		parts[-1] = parts[-1].rstrip()
-		
+	def __init__(self, raw):
 		self.inputs = [] # Years, months and days saved as strings.
 		self.values = [] # Years, months and days saved as numbers.
 		self.tags = [] # Tags consist of tokens, ["YYYY", "MM", "DD"] is a tag, "YYYY" is a token.
 		self.lines = [] # Everything between the numbers or month names.
 
-		# Sorts parts into correct categories and labels them.
-		for i in range(len(parts)):
-			if i % 2 == 1:
-				if parts[i].isnumeric():
-					j = len(self.inputs)
-					self.inputs.append(parts[i])
-					self.values.append(int(parts[i]))
-
-					# Figures out what the inputs could mean.
-					self.tags.append(["Y" * len(parts[i])])
-
-					if len(parts[i]) <= 2:
-						if self.values[j] <= 31:
-							if self.values[j] <= 12:
-								self.tags[j].append("M" * len(parts[i]))
-							self.tags[j].append("D" * len(parts[i]))
-					
-				else: # TODO: Add case for written "first", "second", and so on. (frst, scnd)
-					for j in range(len(months)):
-						if parts[i][:3].lower() == months[j][:3].lower():
-							self.inputs.append(parts[i])
-							self.values.append(j + 1)
-
-							if len(parts[i]) <= 3:
-								self.tags.append(["Mon"])
-							else:
-								self.tags.append(["Month"])
-							break
+		for i, parts in enumerate([raw[:2], raw[3:5], raw[6:]]):
+			if parts[0] != "":
+				self.addNumber(parts[0])
+			elif parts[1] != "":
+				self.addText(parts[1])
 			else:
-				self.lines.append(parts[i])
+				break
+			if i == 1:
+				self.lines.append(raw[2])
+			elif i == 2:
+				self.lines.append(raw[5])
 		
 		self.alternatives = []
 		self.iso = self.Iso(lines = self.lines) # Everything that's wrong with all alternatives no matter what.
@@ -174,6 +137,33 @@ class DateFormat():
 					else:
 						if first[0] != secnd[0] and (first[0] == "M" or secnd[0] == "M"):
 							self.addAlt([first, secnd])
+	
+	def addNumber(self, part):
+		self.inputs.append(part)
+		value = int(part)
+		self.values.append(value)
+		tag = ["Y" * len(part)] # List of possible meanings, could always be a year.
+
+		# Looks for other fitting tags.
+		if len(part) <= 2:
+			if value <= 31:
+				if value <= 12:
+					tag.append("M" * len(part))
+				tag.append("D" * len(part))
+		self.tags.append(tag)
+	
+	def addText(self, part):
+		self.inputs.append(part)
+		for i, month in enumerate(months): # TODO: Add case for written "first", "second", and so on. (frst, scnd)
+			if part[:3].lower() == month[:3].lower():
+				self.values.append(i + 1)
+				if len(part) <= 3:
+					self.tags.append(["Mon"])
+				else:
+					self.tags.append(["Month"])
+				return
+		self.values.append(0) # TODO: Better error handling.
+		self.tags.append([])
 
 	def addAlt(self, tokens): # TODO: Rethink how incorrect lines are handled.
 		date = Date(tokens, self.values, self.inputs)
@@ -198,10 +188,11 @@ class DateFormat():
 		# Allows inputs to be a class containing both arguments.
 		if tags:
 			inputs = tags
-		send = self.lines[0]
-		for i in range(len(inputs)):
-			send += inputs[i]
-			send += self.lines[i + 1]
+		send = ""
+		for i, input in enumerate(inputs):
+			send += input
+			if i < len(self.lines):
+				send += self.lines[i]
 		return send
 	
 	def __str__(self):
@@ -241,8 +232,8 @@ class DateFormat():
 				isoLines = True
 				isoSpaces = True
 
-				# Checks if all the lines are correct. TODO: Fix detection of first and last separators.
-				for line in lines[1:-1]:
+				# Checks if all the lines are correct.
+				for line in lines:
 					if line.strip() == "-":
 						if line != "-":
 							isoSpaces = False
