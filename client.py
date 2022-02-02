@@ -28,6 +28,7 @@ class MyClient(discord.Client):
 				send += "\" and \""
 			else:
 				send += "\"."
+		unitModule.getFindPattern()
 		print(send)
 		inputModule.addSlashCommands(self, ids)
 		print("Successfully added slash commands.")
@@ -35,7 +36,7 @@ class MyClient(discord.Client):
 	async def on_message(self, message):
 		if not message.author.bot:
 			foundDates = dateModule.pattern.findall(message.content)
-			foundUnits = unitModule.generatePattern().findall(message.content)
+			foundUnits = unitModule.getFindPattern().findall(message.content)
 			foundIso = False
 			if len(foundDates) > 0 or len(foundUnits) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
@@ -48,10 +49,10 @@ class MyClient(discord.Client):
 						foundIso = True
 						print("ISO format.")
 						continue
-					if len(toAdd.alternatives) <= 0:
+					if toAdd.definetlyDate == False:
 						print("Definitively not a date.")
 						continue
-					if len(toAdd.tags) <= 2 and not (["Mon"] in toAdd.tags or ["Month" in toAdd.tags]): # TODO: Replace with less jank solution that actually works.
+					if toAdd.definetlyDate is None:
 						print("Maybe not a date.")
 						continue
 					print("Wrong format")
@@ -59,7 +60,7 @@ class MyClient(discord.Client):
 				units = []
 				for unit in foundUnits:
 					toAdd = unitModule.Unit(unit)
-					print(toAdd, end = ": ")
+					print(toAdd, end = " ")
 					if toAdd.iso:
 						foundIso = True
 						print("ISO unit.")

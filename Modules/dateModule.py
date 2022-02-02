@@ -109,6 +109,7 @@ class DateFormat():
 		self.values = [] # Years, months and days saved as numbers.
 		self.tags = [] # Tags consist of tokens, ["YYYY", "MM", "DD"] is a tag, "YYYY" is a token.
 		self.lines = [] # Everything between the numbers or month names.
+		self.definetlyDate = None
 
 		for i, parts in enumerate([raw[:2], raw[3:5], raw[6:]]):
 			if parts[0] != "":
@@ -121,6 +122,9 @@ class DateFormat():
 				self.lines.append(raw[2])
 			elif i == 2:
 				self.lines.append(raw[5])
+		
+		if len(self.inputs) >= 3:
+			self.definetlyDate = True
 		
 		self.alternatives = []
 		self.iso = self.Iso(lines = self.lines) # Everything that's wrong with all alternatives no matter what.
@@ -137,6 +141,9 @@ class DateFormat():
 					else:
 						if first[0] != secnd[0] and (first[0] == "M" or secnd[0] == "M"):
 							self.addAlt([first, secnd])
+		
+		if len(self.alternatives) <= 0:
+			self.definetlyDate = False
 	
 	def addNumber(self, part):
 		self.inputs.append(part)
@@ -150,6 +157,8 @@ class DateFormat():
 				if value <= 12:
 					tag.append("M" * len(part))
 				tag.append("D" * len(part))
+		else:
+			self.definetlyDate = True
 		self.tags.append(tag)
 	
 	def addText(self, part):
@@ -161,6 +170,7 @@ class DateFormat():
 					self.tags.append(["Mon"])
 				else:
 					self.tags.append(["Month"])
+				self.definetlyDate = True
 				return
 		self.values.append(0) # TODO: Better error handling.
 		self.tags.append([])

@@ -21,6 +21,8 @@ siPrefixes = {
 class BaseUnit():
 	rawAmount = None # String of the amount as inputted.
 	name = None # Name of the unit.
+	dividents = [] # If there are many units, they are arranged as dividents / divisors.
+	divisors = []
 	amount = None # rawAmount as a number.
 	conversion = 1 # This multiplied by the amount is the amount in the corresponding SI unit.
 	unitType = None # Shorthand for if this is a unit of lenght, mass or other.
@@ -42,23 +44,29 @@ class Unit(BaseUnit):
 	def __init__(self, whole):
 		print(whole)
 		self.rawAmount = whole[0] # Saves the unit amount.
+		self.name = whole[2]
 		self.iso = self.Iso()
 		self.iso.convertAmount(self) # Creates self.amount from self.rawAmount, and checks if its iso.
-		self.name = whole[1]
 		self.secondUnit = None # This is a special case for 5'6'' and similar.
 
-		if whole[1] != whole[2] and whole[2] in ["\'", "\'\'"]:
+		if whole[2] in ["\'", "\'\'"]:
 			self.iso.unit = False
-			self.name = whole[2]
+			if self.name == "\'":
+				self.dividents.append("foot")
+			elif self.name in ["\'\'", "\""]:
+				self.dividents.append("inch")
 
 			self.secondUnit = self.iso.convertAmount(self.SecondUnit(whole[3], whole[4]))
 			if self.secondUnit.name == "":
-				if self.name == "\'":
-					self.secondUnit.name = "inch"
+				if self.name == "foot":
+					self.secondUnit.dividents.append("inch")
 				else:
-					self.secondUnit.name = "foot"
+					self.secondUnit.dividents.append("foot")
 			self.secondUnit.selectSelf()
 		else:
+			# Adds all dates.
+			for parts in re.findall(r"(?:(?: *(square|cubic))? *(" + getUnitMatch() + r")(?: *(squared|cube)|( *\^ *)?(2|3))?(?: *(\*|\/|times|(?:p|div|mult)\w*))?)", self.name, re.IGNORECASE):
+				print(parts)
 			# Checks if the unit could be SI.
 			self.iso.unit = False
 			for key, value in siUnits.items():
@@ -66,10 +74,6 @@ class Unit(BaseUnit):
 					self.iso.unit = True
 					self.unitType = key
 					break
-		if self.name == "\'":
-			self.name = "foot"
-		elif self.name in ["\'\'", "\""]:
-			self.name = "inch"
 		
 		if self.unitType is None:
 			self.selectSelf()
@@ -93,10 +97,11 @@ class Unit(BaseUnit):
 		def __init__(self, rawAmount, name):
 			self.rawAmount = rawAmount
 			self.name = name
+			self.dividents = []
 			if self.name == "\'":
-				self.name = "foot"
+				self.dividents.append("foot")
 			elif self.name in ["\'\'", "\""]:
-				self.name = "inch"
+				self.dividents.append("inch")
 		
 		def write(self):
 			return f"{self.rawAmount} {self.name}"
@@ -139,21 +144,21 @@ class Unit(BaseUnit):
 		def __str__(self):
 			return f"Correct unit: {self.unit}, punctuation: {self.punctuation}, separators: {self.separators}, digit grouping: {self.digitGrouping}."
 
-def generatePattern():
+def getUnitMatch():
 	cursor = dataModule.connection.cursor()
 	cursor.execute("SELECT name, inflection, prefix FROM defaultUnits")
 	inflections = [[]] # A list of lists of all unit names and prefixes, indexed by inflection.
 	prefixString = r""
 	for unit in siUnits.values():
 		inflections[0].append(unit)
-		prefixString += r"|" + unit[0]
+		prefixString += r"|" + re.escape(unit[0])
 	for unit in cursor.fetchall():
 		while len(inflections) <= unit[1]:
 			inflections.append([])
 		inflections[unit[1]].append(unit[0])
 		if not unit[2] is None:
-			prefixString += r"|" + unit[2]
-
+			prefixString += r"|" + re.escape(unit[2])
+	
 	unitString = r""
 	for inflection, units in enumerate(inflections):
 		if len(units) > 0:
@@ -164,7 +169,7 @@ def generatePattern():
 			for i, unit in enumerate(units):
 				if i > 0:
 					unitString += r"|"
-				unitString += unit
+				unitString += re.escape(unit)
 			if inflection < 2:
 				unitString += r")"
 				
@@ -177,9 +182,18 @@ def generatePattern():
 				for i, unit in enumerate(units):
 					if i > 0:
 						unitString += r"|"
-					unitString += unit.replace("o", "e").replace("O", "E")
+					unitString += re.escape(unit.replace("o", "e").replace("O", "E"))
+	# (?<!\w)(\d+(?:[\.\, ]\d+)*) *(square|cubic)? *() *(squared|cube|(?:\^ *)?(2|3))?( *(\*|\/|times|(p|div|mult)\w*) *())?(?!\w)
+	# (?<!\w)(\d+(?:[\.\, ]\d+)*)(( *(''?)(?: *(\d+(?:[\.\, ]\d+)*)(?: *(''?))?)?)|(?:(?: *(?:square|cubic))? *(?:meters?)(?: *(?:squared|cube|\^? *(?:2|3)))?(?: *(?:\*|\/|times|(?:p|div|mult)\w*))?)+)(?!\w)
+	#final = r"(?<!\w)(\d+(?:[\.\, ]\d+)*) *(square|cubic)? *(''?|" + unitString + prefixString + r") *((\d+(?:[\.\, ]\d+)*) *(''?)|(squared|cube|(?:\^ *)?(2|3))?"
+	#amount = 2
+	#unitPart = r" *((\*|\/|times|(p|div|mult)\w* *)(square|cubic)? *(" + unitString + prefixString + r") *(squared|cube|(?:\^ *)?(2|3)"
+	#final += unitPart * (amount - 1) + r")?" * (amount) + r")(?!\w)"
+	#return re.compile(r"(?<!\w)(\d+(?:[\.\, ]\d+)*) *(" + unitString + prefixString + r"|(''?)(?: *(\d+(?:[\.\, ]\d+)*) *(''?)?)?)(?!\w)", re.IGNORECASE)
+	return unitString + prefixString
 
-	return re.compile(r"(\d+(?:[\.\, ]\d+)*) *(" + unitString + prefixString + r"|(''?)(?: *(\d+(?:\.\, ]\d+)*) *(''?)?)?)", re.IGNORECASE)
+def getFindPattern():
+	return re.compile(r"(?<!\w)(\d+(?:[\.\, ]\d+)*)( *(''?)(?: *(\d+(?:[\.\, ]\d+)*)(?: *(''?))?)?|(?:(?: *(?:square|cubic))? *(?:" + getUnitMatch() + r")(?: *(?:squared|cube)|( *\^ *)?(?:2|3))?(?: *(?:\*|\/|times|(?:p|div|mult)\w*))?)+)(?!\w)", re.IGNORECASE)
 
 def getSiUnit(unitType):
 	if unitType == "area":
