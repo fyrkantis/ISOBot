@@ -40,7 +40,7 @@ class MyClient(discord.Client):
 			foundIso = False
 			if len(foundDates) > 0 or len(foundUnits) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
-				print(foundDates)
+				print(foundUnits)
 				dates = []
 				for date in foundDates:
 					toAdd = dateModule.DateFormat(date)
