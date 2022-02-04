@@ -65,7 +65,7 @@ class MyClient(discord.Client):
 						foundIso = True
 						print("ISO unit.")
 						continue
-					if toAdd.unitType is None:
+					if len(toAdd.dividents) <= 0:
 						print("Not a unit.")
 						continue
 					print("Wrong unit.")

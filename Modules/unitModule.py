@@ -22,43 +22,54 @@ class BaseUnit():
 	rawAmount = None # String of the amount as inputted.
 	name = None # Name of the unit.
 	amount = None # rawAmount as a number.
-	unitType = None # Shorthand for if this is a unit of lenght, mass or other.
+	dividents = [] # If there are many units, they are arranged as dividents / divisors.
+	divisors = []
+	conversion = 1
 	
-	def selectSelf(self):
-		cursor = dataModule.connection.cursor()
-		cursor.execute("""SELECT type, conversion, base FROM defaultUnits
-WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
-LIMIT 1;""", [self.name])
-		result = cursor.fetchone()
-		cursor.close()
-		if not result is None:
-			self.unitType = result[0]
-			self.conversion = result[1] * 10 ** result[2]
-		else:
-			print(f"Couldn't find unit \"{self.name}\" in database.")
-	
-	class UnitType():
-		def __init__(self, raw):
-			self.dividents = {} # If there are many units, they are arranged as dividents / divisors.
-			self.divisors = {}
-			self.conversion = 1 # This multiplied by the amount is the amount in the corresponding SI unit.
-			self.si = None
+	class UnitPart():
+		def __init__(self, whole):
+			self.name = whole[1] # This multiplied by the amount is the amount in the corresponding SI unit.
+			self.unitType = None
+			self.conversion = 1
+			self.exponent = 1
+			self.si = False
 
-			dividing = False
-			for parts in re.findall(r"(?<!\w)(?:(?:(square|cubic) *)?(" + getUnitMatch() + r")(?: *(squared|cube)|( *\^ *)?(2|3))?(?: *(\*|\/|times|(?:p|div|mult)\w*))?)(?!\w)", self.name, re.IGNORECASE):
-				print(parts)
-				# Get potential si unit here first.
-				cursor = dataModule.connection.cursor()
-				cursor.execute("""SELECT type, conversion, base FROM defaultUnits
+			if whole[0].startswith("square") or whole[4] == "2":
+				self.exponent = 2
+			elif whole[0].startswith("cube") or whole[4] == "3":
+				self.exponent = 3
+			
+			for key, value in siUnits.items():
+				if self.name == value or self.name == pluralUnit(value):
+					print("It's an si unit.")
+					self.si = True
+					self.type = key
+					return
+
+			cursor = dataModule.connection.cursor()
+			cursor.execute("""SELECT type, conversion, base FROM defaultUnits
 WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
 LIMIT 1;""", [self.name])
-				result = cursor.fetchone()
-				cursor.close()
+			result = cursor.fetchone()
+			cursor.close()
+
+			if not result is None:
+				print(result)
+				self.unitType = result[0]
+				self.conversion = (result[1] * 10 ** result[2]) ** self.exponent
+			else:
+				print(f"Couldn't find unit \"{self.name}\" in database.")
+		
+		def __str__(self):
+			return f"{self.name}^{self.exponent}: {self.unitType} unit with conversion {self.conversion}, SI {self.si}."
+		
+		def __repr__(self):
+			return str(self)
 
 class Unit(BaseUnit):
 	def __init__(self, whole):
 		self.rawAmount = whole[0] # Saves the unit amount.
-		self.name = whole[1]
+		self.name = whole[1].lstrip()
 		self.iso = self.Iso()
 		self.iso.convertAmount(self) # Creates self.amount from self.rawAmount, and checks if its iso.
 		self.secondUnit = None # This is a special case for 5'6'' and similar.
@@ -79,24 +90,32 @@ class Unit(BaseUnit):
 					self.secondUnit.dividents.append("foot")
 			self.secondUnit.selectSelf()
 		else:
-			self.unitType = UnitType(self.name)
-			print(self.unitType)
-			# Checks if the unit could be SI.
-			#self.iso.unit = False
-			#for key, value in siUnits.items():
-			#	if self.name == value or self.name == pluralUnit(value):
-			#		self.iso.unit = True
-			#		self.unitType = key
-			#		break
-		
-		#if self.unitType is None:
-		#	self.selectSelf()
+			dividing = False
+			for parts in re.findall(r"(?<!\w)(?:(?:(square|cubic) *)?(" + getUnitMatch() + r")(?: *(squared?|cubed?)|( *\^ *)?(2|3))?(?: *(\*|\/|\\|times|(?:p|div|mult)\w*))?)(?!\w)", self.name, re.IGNORECASE):
+				print(parts)
+				unitPart = self.UnitPart(parts)
+				self.conversion *= unitPart.conversion
+				print(unitPart)
+				if self.iso.unit is None and unitPart.si:
+					self.iso.unit = True
+				elif not unitPart.si:
+					self.iso.unit = False
+				if not dividing:
+					
+					self.dividents.append(unitPart)
+				else:
+					self.divisors.append(unitPart)
+				if not dividing and parts[5].startswith(("p", "div", "/", "\\")):
+					dividing = True
 	
 	def isoString(self):
 		total = self.amount * self.conversion
 		if not self.secondUnit is None:
 			total += self.secondUnit.amount * self.secondUnit.conversion
-		return f"{significantFigures(total)} {siUnits[self.unitType]}s"
+		return f"{significantFigures(total)} things"
+	
+	def unitTypeString(self):
+		return "Somethin"
 	
 	def write(self):
 		if self.secondUnit is None:
@@ -105,7 +124,7 @@ class Unit(BaseUnit):
 			return f"{self.rawAmount} {self.name} {self.secondUnit.write()}"
 	
 	def __str__(self):
-		return f"\"{self.write()}\" {self.amount} {self.unitType} unit(s) with conversion {self.conversion}.\nSecond unit: {self.secondUnit}\n{self.iso}"
+		return f"\"{self.write()}\" {self.amount} unit with conversion {self.conversion}.\nDividents: {self.dividents}.\nDivisors: {self.divisors}.\nSecond unit: {self.secondUnit}\n{self.iso}"
 	
 	class SecondUnit(BaseUnit):
 		def __init__(self, rawAmount, name):
@@ -207,7 +226,7 @@ def getUnitMatch():
 	return unitString + prefixString
 
 def getFindPattern():
-	capture = r"(?<!\w)(\d+(?:[\.\, ]\d+)*) *((''?)(?: *(\d+(?:[\.\, ]\d+)*)(?: *(''?))?)?|(?:(?:(?:square|cubic) *)?(?:" + getUnitMatch() + r")(?: *(?:squared|cube)|( *\^ *)?(?:2|3))?(?: *(?:\*|\/|times|(?:p|div|mult)\w*))?)+)(?!\w)"
+	capture = r"(?<!\w)(\d+(?:[\.\, ]\d+)*)((''?)(?: *(\d+(?:[\.\, ]\d+)*)(?: *(''?))?)?|(?:(?: *(?:square|cubic))? *(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|( *\^ *)?(?:2|3))?(?: *(?:\*|\/|\\|times|(?:p|div|mult)\w*))?)+)(?!\w)"
 	print(capture)
 	return re.compile(capture, re.IGNORECASE)
 
