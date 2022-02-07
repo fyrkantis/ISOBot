@@ -71,6 +71,8 @@ class MyClient(discord.Client):
 					print("Wrong unit.")
 					units.append(toAdd)
 				
+				# TODO: Move feedback to embed description.
+				
 				if len(dates) > 0 or len(units) > 0:
 					sentence = textModule.Sentence(message)
 					embed = discord.Embed(title = sentence.title(), description = sentence.subtitle(), color = 0xe4010c)

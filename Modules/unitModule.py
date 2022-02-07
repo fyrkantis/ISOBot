@@ -19,57 +19,126 @@ siPrefixes = {
 }
 
 class BaseUnit():
-	rawAmount = None # String of the amount as inputted.
-	name = None # Name of the unit.
-	amount = None # rawAmount as a number.
-	dividents = [] # If there are many units, they are arranged as dividents / divisors.
+	factors = [] # (subUnit1 + subUnit2) * factor1 * factor2 / (divisor1 * divisor2)
 	divisors = []
-	conversion = 1
-	
-	class UnitPart():
-		def __init__(self, whole):
-			self.name = whole[1] # This multiplied by the amount is the amount in the corresponding SI unit.
-			self.unitType = None
-			self.conversion = 1
+	iso = None
+
+	class Part():
+		def __init__(self, name):
+			self.name = name
 			self.exponent = 1
 			self.si = False
-
-			if whole[0].startswith("square") or whole[4] == "2":
-				self.exponent = 2
-			elif whole[0].startswith("cube") or whole[4] == "3":
-				self.exponent = 3
-			
-			for key, value in siUnits.items():
-				if self.name == value or self.name == pluralUnit(value):
-					print("It's an si unit.")
-					self.si = True
-					self.type = key
-					return
-
-			cursor = dataModule.connection.cursor()
-			cursor.execute("""SELECT type, conversion, base FROM defaultUnits
-WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
-LIMIT 1;""", [self.name])
-			result = cursor.fetchone()
-			cursor.close()
-
-			if not result is None:
-				print(result)
-				self.unitType = result[0]
-				self.conversion = (result[1] * 10 ** result[2]) ** self.exponent
-			else:
-				print(f"Couldn't find unit \"{self.name}\" in database.")
 		
 		def __str__(self):
-			return f"{self.name}^{self.exponent}: {self.unitType} unit with conversion {self.conversion}, SI {self.si}."
-		
+			if self.exponent == 1:
+				return self.name
+			else:
+				return self.name + f"^{self.exponent}"
 		def __repr__(self):
 			return str(self)
 
+	class Iso():
+		unit = True
+		punctuation = True
+		separators = True
+		digitGrouping = True
+		
+		# Converts rawAmount to amount while checking how its formatted.
+		def convertAmount(self, target): # "123,456.789"
+			self.punctuation = target.rawAmount.count(",") <= 0
+			
+			parts = target.rawAmount.replace(",", ".") # "123.456.789"
+			self.separators = parts.count(".") <= 1
+
+			parts = parts.rsplit(".", 1) # ["123.456", "789"]
+			if "." in parts[0]:
+				self.separators = False
+			
+			parts[0] = parts[0].replace(".", " ") # ["123 456", "789"]
+			for i, part in enumerate(parts[0].split(" ")):
+				if i > 0 and not len(part) == 3:
+					self.digitGrouping = False
+					break
+			
+			target.amount = int(parts[0].replace(" ", "").replace(" ", "")) # 123456
+			if len(parts) > 1:
+				target.amount += int(parts[-1]) / 10 ** len(parts[-1]) # 123456 + 0.789 = 123456.789
+			return target
+
+		def __bool__(self):
+			return self.unit and self.punctuation and self.separators and self.digitGrouping
+		
+		def __str__(self):
+			return f"Correct unit: {self.unit}, punctuation: {self.punctuation}, separators: {self.separators}, digit grouping: {self.digitGrouping}."
+
 class Unit(BaseUnit):
+	def __init__(self, rawInput):
+		self.rawInput = rawInput # The full unit as entered.
+		self.subUnits = []
+		self.iso = self.Iso()
+
+		capture = r"(?<!\w)(\d+(?:[\.\, ]\d+)*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?|(\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|(?:div|p)\w*)(?!\w)"
+		subUnit = None
+		dividing = False
+		for parts in re.findall(capture, self.rawInput, re.IGNORECASE):
+			if parts[0] != "": # Number.
+				subUnit = SubUnit(parts[0])
+				self.subUnits.append(subUnit)
+				dividing = False
+			elif subUnit is None:
+				continue
+			elif parts[1] != "": # Apostrophe(s).
+				if parts[1] == "'":
+					subUnit.factors.append(self.Part("foot"))
+				elif parts[1] == "''" or parts[1] == "\"":
+					subUnit.factors.append(self.Part("inch"))
+			elif parts[4] != "": # Unit.
+				part = self.Part(parts[4])
+				if parts[2] != "" or parts[5] != "": # Squared.
+					part.exponent = 2
+				elif parts[3] != "" or parts[6] != "": # Cubed.
+					part.exponent = 3
+				if not dividing:
+					subUnit.factors.append(part)
+				else:
+					subUnit.divisors.append(part)
+			elif parts[7] != "": # Addition.
+				subUnit = None
+			elif parts[8] != "": # Divsion.
+				dividing = True
+	
+	def __str__(self):
+		return f"{self.rawInput}, sub-units: {self.subUnits}.\nISO: {self.iso}"
+
+class SubUnit(BaseUnit):
+		def __init__(self, rawAmount):
+			self.rawAmount = rawAmount
+			self.iso = self.Iso()
+			self.iso.convertAmount(self) # Creates self.amount from self.rawAmount, and checks if its iso.
+			
+#			cursor = dataModule.connection.cursor()
+#			cursor.execute("""SELECT type, conversion, base FROM defaultUnits
+#WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
+#LIMIT 1;""", [self.name])
+#			result = cursor.fetchone()
+#			cursor.close()
+#			if not result is None:
+#				print(result)
+#				self.unitType = result[0]
+#				self.conversion = (result[1] * 10 ** result[2]) ** self.exponent
+#			else:
+#				print(f"Couldn't find unit \"{self.name}\" in database.")
+		
+		def __str__(self):
+			return f"\"{self.rawAmount}\", {self.amount} * {self.factors} / {self.divisors}."
+		
+		def __repr__(self):
+			return "\n" + str(self)
+
+class UnitX():
 	def __init__(self, whole):
 		self.rawAmount = whole[0] # Saves the unit amount.
-		self.name = whole[1].lstrip()
+		self.name = whole[1]
 		self.iso = self.Iso()
 		self.iso.convertAmount(self) # Creates self.amount from self.rawAmount, and checks if its iso.
 		self.secondUnit = None # This is a special case for 5'6'' and similar.
@@ -89,24 +158,25 @@ class Unit(BaseUnit):
 				else:
 					self.secondUnit.dividents.append("foot")
 			self.secondUnit.selectSelf()
-		else:
-			dividing = False
-			for parts in re.findall(r"(?<!\w)(?:(?:(square|cubic) *)?(" + getUnitMatch() + r")(?: *(squared?|cubed?)|( *\^ *)?(2|3))?(?: *(\*|\/|\\|times|(?:p|div|mult)\w*))?)(?!\w)", self.name, re.IGNORECASE):
-				print(parts)
-				unitPart = self.UnitPart(parts)
-				self.conversion *= unitPart.conversion
-				print(unitPart)
-				if self.iso.unit is None and unitPart.si:
-					self.iso.unit = True
-				elif not unitPart.si:
-					self.iso.unit = False
-				if not dividing:
-					
-					self.dividents.append(unitPart)
-				else:
-					self.divisors.append(unitPart)
-				if not dividing and parts[5].startswith(("p", "div", "/", "\\")):
-					dividing = True
+		
+		dividing = False
+		for parts in re.findall(r"(?<!\w)(?:(\d+(?:[\.\, ]\d+)*)|(''?|\")|((?:" + getUnitMatch() + r")|(squared?|\^ *2)|(cube(?:d|ic)?|\^ *3)|(\+|plus|and)|(\*|a|times|mult\w*)|(\/|\\|(?:div|p)\w*))(?!\w)", self.name, re.IGNORECASE):
+			print(f"Parts{parts}")
+
+			unitPart = self.UnitPart(parts)
+			self.conversion *= unitPart.conversion
+			print(unitPart)
+			if self.iso.unit is None and unitPart.si:
+				self.iso.unit = True
+			elif not unitPart.si:
+				self.iso.unit = False
+			if not dividing:
+				
+				self.dividents.append(unitPart)
+			else:
+				self.divisors.append(unitPart)
+			if not dividing and parts[5].startswith(("p", "div", "/", "\\")):
+				dividing = True
 	
 	def isoString(self):
 		total = self.amount * self.conversion
@@ -126,7 +196,7 @@ class Unit(BaseUnit):
 	def __str__(self):
 		return f"\"{self.write()}\" {self.amount} unit with conversion {self.conversion}.\nDividents: {self.dividents}.\nDivisors: {self.divisors}.\nSecond unit: {self.secondUnit}\n{self.iso}"
 	
-	class SecondUnit(BaseUnit):
+	class SecondUnitX():
 		def __init__(self, rawAmount, name):
 			self.rawAmount = rawAmount
 			self.name = name
@@ -141,41 +211,6 @@ class Unit(BaseUnit):
 		
 		def __str__(self):
 			return f"\"{self.write()}\" {self.amount} {self.unitType} sub unit(s) with conversion {self.conversion}."
-	
-	class Iso():
-		unit = None
-		punctuation = None
-		separators = None
-		digitGrouping = None
-		
-		# Converts rawAmount to amount while checking how its formatted.
-		def convertAmount(self, target): # "123,456.789"
-			self.punctuation = target.rawAmount.count(",") <= 0
-			
-			parts = target.rawAmount.replace(",", ".") # "123.456.789"
-			self.separators = parts.count(".") <= 1
-
-			parts = parts.rsplit(".", 1) # ["123.456", "789"]
-			if "." in parts[0]:
-				self.separators = False
-			
-			self.digitGrouping = True
-			parts[0] = parts[0].replace(".", " ") # ["123 456", "789"]
-			for i, part in enumerate(parts[0].split(" ")):
-				if i > 0 and not len(part) == 3:
-					self.digitGrouping = False
-					break
-			
-			target.amount = int(parts[0].replace(" ", "").replace(" ", "")) # 123456
-			if len(parts) > 1:
-				target.amount += int(parts[-1]) / 10 ** len(parts[-1]) # 123456 + 0.789 = 123456.789
-			return target
-
-		def __bool__(self):
-			return self.unit and self.punctuation and self.separators and self.digitGrouping
-		
-		def __str__(self):
-			return f"Correct unit: {self.unit}, punctuation: {self.punctuation}, separators: {self.separators}, digit grouping: {self.digitGrouping}."
 
 def getUnitMatch():
 	cursor = dataModule.connection.cursor()
@@ -226,7 +261,7 @@ def getUnitMatch():
 	return unitString + prefixString
 
 def getFindPattern():
-	capture = r"(?<!\w)(\d+(?:[\.\, ]\d+)*)((''?)(?: *(\d+(?:[\.\, ]\d+)*)(?: *(''?))?)?|(?:(?: *(?:square|cubic))? *(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|( *\^ *)?(?:2|3))?(?: *(?:\*|\/|\\|times|(?:p|div|mult)\w*))?)+)(?!\w)"
+	capture = r"(?<!\w)((?:\d+(?:[\.\, ]\d+)* *(?:''?|(?:(?:(?:square|cubic) *)?(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|(?: *\^ *)?(?:2|3))?(?: *(?:\*|\/|\\|\+|times|plus|and|a|(?:p|div|mult)\w*))? *)+) *)+)(?!\w)"
 	print(capture)
 	return re.compile(capture, re.IGNORECASE)
 
