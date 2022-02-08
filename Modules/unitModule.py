@@ -19,29 +19,38 @@ siPrefixes = {
 }
 
 class BaseUnit():
-	factors = [] # (subUnit1 + subUnit2) * factor1 * factor2 / (divisor1 * divisor2)
-	divisors = []
-	iso = None
-
 	class Part():
 		def __init__(self, name):
 			self.name = name
+			self.unitType = None
+			self.conversion = 1
 			self.exponent = 1
 			self.si = False
+
+			cursor = dataModule.connection.cursor()
+			cursor.execute("""SELECT type, conversion, base FROM defaultUnits
+WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
+LIMIT 1;""", [self.name])
+			result = cursor.fetchone()
+			cursor.close()
+			if not result is None:
+				print(result)
+				self.unitType = result[0]
+				self.conversion = (result[1] * 10 ** result[2]) ** self.exponent
+			else:
+				print(f"Couldn't find unit \"{self.name}\" in database.")
 		
 		def __str__(self):
-			if self.exponent == 1:
-				return self.name
-			else:
-				return self.name + f"^{self.exponent}"
+			return f"{self.name}^{self.exponent}, {self.unitType} unit with conversion {self.conversion}. SI: {self.si}."
 		def __repr__(self):
-			return str(self)
+			return f"{self.name}^{self.exponent} {self.unitType} {self.conversion}"
 
 	class Iso():
-		unit = True
-		punctuation = True
-		separators = True
-		digitGrouping = True
+		def __init__(self):
+			self.unit = True
+			self.punctuation = True
+			self.separators = True
+			self.digitGrouping = True
 		
 		# Converts rawAmount to amount while checking how its formatted.
 		def convertAmount(self, target): # "123,456.789"
@@ -76,36 +85,40 @@ class Unit(BaseUnit):
 		self.rawInput = rawInput # The full unit as entered.
 		self.subUnits = []
 		self.iso = self.Iso()
+		self.factors = [] # (subUnit1 + subUnit2) * factor1 * factor2 / (divisor1 * divisor2)
+		self.divisors = []
 
-		capture = r"(?<!\w)(\d+(?:[\.\, ]\d+)*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?|(\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|(?:div|p)\w*)(?!\w)"
-		subUnit = None
+		capture = r"(?<!\w)(\d+(?:[\.\, ]\d+)*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?|(?:\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|(?:div|p)\w*)(?!\w)"
 		dividing = False
 		for parts in re.findall(capture, self.rawInput, re.IGNORECASE):
 			if parts[0] != "": # Number.
-				subUnit = SubUnit(parts[0])
-				self.subUnits.append(subUnit)
+				self.subUnits.append(SubUnit(parts[0]))
 				dividing = False
-			elif subUnit is None:
+			elif len(self.subUnits) <= 0:
 				continue
 			elif parts[1] != "": # Apostrophe(s).
 				if parts[1] == "'":
-					subUnit.factors.append(self.Part("foot"))
+					self.addPart("foot")
 				elif parts[1] == "''" or parts[1] == "\"":
-					subUnit.factors.append(self.Part("inch"))
+					self.addPart("inch")
 			elif parts[4] != "": # Unit.
-				part = self.Part(parts[4])
+				part = self.addPart(parts[4], dividing)
 				if parts[2] != "" or parts[5] != "": # Squared.
 					part.exponent = 2
 				elif parts[3] != "" or parts[6] != "": # Cubed.
 					part.exponent = 3
-				if not dividing:
-					subUnit.factors.append(part)
-				else:
-					subUnit.divisors.append(part)
-			elif parts[7] != "": # Addition.
-				subUnit = None
-			elif parts[8] != "": # Divsion.
+			elif parts[7] != "": # Divsion.
 				dividing = True
+			# Addition and multiplication do not matter.
+	
+	def addPart(self, name, dividing = False):
+		part = self.Part(name)
+		subUnit = self.subUnits[-1]
+		if not dividing:
+			subUnit.factors.append(part)
+		else:
+			subUnit.divisors.append(part)
+		return part
 	
 	def __str__(self):
 		return f"{self.rawInput}, sub-units: {self.subUnits}.\nISO: {self.iso}"
@@ -115,20 +128,9 @@ class SubUnit(BaseUnit):
 			self.rawAmount = rawAmount
 			self.iso = self.Iso()
 			self.iso.convertAmount(self) # Creates self.amount from self.rawAmount, and checks if its iso.
-			
-#			cursor = dataModule.connection.cursor()
-#			cursor.execute("""SELECT type, conversion, base FROM defaultUnits
-#WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
-#LIMIT 1;""", [self.name])
-#			result = cursor.fetchone()
-#			cursor.close()
-#			if not result is None:
-#				print(result)
-#				self.unitType = result[0]
-#				self.conversion = (result[1] * 10 ** result[2]) ** self.exponent
-#			else:
-#				print(f"Couldn't find unit \"{self.name}\" in database.")
-		
+			self.factors = [] # (subUnit1 + subUnit2) * factor1 * factor2 / (divisor1 * divisor2)
+			self.divisors = []
+
 		def __str__(self):
 			return f"\"{self.rawAmount}\", {self.amount} * {self.factors} / {self.divisors}."
 		
