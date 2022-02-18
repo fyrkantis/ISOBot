@@ -65,7 +65,7 @@ class MyClient(discord.Client):
 						foundIso = True
 						print("ISO unit.")
 						continue
-					if len(toAdd.dividents) <= 0:
+					if len(toAdd.subUnits) <= 0:
 						print("Not a unit.")
 						continue
 					print("Wrong unit.")
@@ -83,7 +83,7 @@ class MyClient(discord.Client):
 						embed.add_field(name = f"**{date.write()}**", value = sentence.dateAnalysis(date), inline = False)
 
 					for unit in units:
-						embed.add_field(name = f"**{unit.write()}**", value = sentence.unitAnalysis(unit), inline = False)
+						embed.add_field(name = f"**{unit.rawInput}**", value = sentence.unitAnalysis(unit), inline = False)
 					
 					embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png?size=256") # TODO: Test stability.
 					await message.reply(file = file, embed = embed)
