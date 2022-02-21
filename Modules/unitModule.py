@@ -13,10 +13,23 @@ siUnits = {
 	"power": "watt"
 }
 
+# Non case-sensitive prefixes.
 siPrefixes = {
-	 "kilo": 3,   "mega": 6,  "giga": 9,  "tera": 12,   "peta": 15,   "exa": 18,  "zetta": 21,  "yotta": 24,
-	"milli": -3, "micro": -6, "nano": -9, "pico": -12, "femto": -15, "atto": -18, "zepto": -21, "yocto": -24
+	"deka": 1, "hecto": 2, "kilo": 3, "mega": 6, "giga": 9, "tera": 12, "peta": 15, "exa": 18, "zetta": 21, "yotta": 24,
+	"deci": -1, "centi": -2, "milli": -3, "micro": -6, "nano": -9, "pico": -12, "femto": -15, "atto": -18, "zepto": -21, "yocto": -24
 }
+
+# Non case-sensitive prefix symbols.
+siSymbols = {
+	"da": 1, "h": 2, "k": 3, "g": 9, "t": 12, "e": 18,
+	"d": -1, "c": -2, "m": -3, "u": -6, "μ": -6, "n": -9, "n": -9, "f": -15, "a": -18
+}
+
+# Case-sensitive prefix symbols. TODO: Fix case-sensitive prefix symbols.
+#siCaseSymbols = {
+#	"M": 6, "P": 15, "Z": 21, "Y": 24,
+#	"m": -3, "p": -12, "z": -21, "y": -24
+#}
 
 class BaseUnit():
 	def convert(self):
@@ -44,7 +57,7 @@ class BaseUnit():
 
 			cursor = dataModule.connection.cursor()
 			cursor.execute("""SELECT type, conversion, base FROM defaultUnits
-WHERE @0 IN (name, pluralUnit(name, inflection), prefix, prefix + "s")
+WHERE @0 IN (name, pluralUnit(name, inflection), symbol, symbol + "s")
 LIMIT 1;""", [self.name])
 			result = cursor.fetchone()
 			cursor.close()
@@ -95,32 +108,41 @@ class Unit(BaseUnit):
 		self.divisors = []
 
 		# Goes through all parts of the unit and adds sub-units accordingly.
-		capture = r"(?<!\w)(\d+(?:[\.\, ]\d+)*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?|(?:\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|(?:div|p)\w*)(?!\w)"
+		capture = r"(?<!\w)(?:(\d+(?:[\.\, ]\d+)*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?(?:(?:(" + r"|".join(list(siPrefixes.keys())) + r")|(" + r"|".join(list(siSymbols.keys())) + r")) *)?((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?|(?:\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|(?:div|p)\w*))(?!\w)"
+		print(capture)
 		dividing = False
 		subUnit = None
 		for parts in re.findall(capture, self.rawInput, re.IGNORECASE):
+			print(parts)
 			if parts[0] != "": # Number.
 				subUnit = SubUnit(parts[0])
 				self.subUnits.append(subUnit)
 				dividing = False
 			elif subUnit is None:
 				continue
-			elif parts[1] or parts[4] != "": # Apostrophe(s) or Unit.
+			elif parts[1] or parts[6] != "": # Apostrophe(s) or Unit.
 				if parts[1] != "": # Apostrophe(s).
 					if parts[1] == "'":
 						part = subUnit.Part("foot")
 					else:# parts[1] == "''" or parts[1] == "\"":
 						part = subUnit.Part("inch")
 				else: # Unit
-					part = subUnit.Part(parts[4])
+					part = subUnit.Part(parts[6])
 				self.addDuring(part, subUnit, dividing) # TODO: 5 square inches and 7 feet per second.
 				if not part.si:
 					subUnit.iso.unit = False
-				if parts[2] != "" or parts[5] != "": # Squared.
+
+				# Prefix			
+				if parts[4].lower() in siPrefixes:
+					part.base += siPrefixes[parts[4].lower()]
+				elif parts[4].lower() in siSymbols:
+					part.base += siSymbols[parts[4].lower()]
+
+				if parts[2] != "" or parts[7] != "": # Squared.
 					part.exponent = 2
-				elif parts[3] != "" or parts[6] != "": # Cubed.
+				elif parts[3] != "" or parts[8] != "": # Cubed.
 					part.exponent = 3
-			elif parts[7] != "": # Divsion.
+			elif parts[9] != "": # Divsion.
 				dividing = not dividing
 			# Addition and multiplication do not matter.
 		
@@ -225,18 +247,18 @@ class SubUnit(BaseUnit):
 
 def getUnitMatch():
 	cursor = dataModule.connection.cursor()
-	cursor.execute("SELECT name, inflection, prefix FROM defaultUnits")
+	cursor.execute("SELECT name, inflection, symbol FROM defaultUnits")
 	inflections = [[]] # A list of lists of all unit names and prefixes, indexed by inflection.
-	prefixString = r""
+	symbolString = r""
 	for unit in siUnits.values():
 		inflections[0].append(unit)
-		prefixString += r"|" + re.escape(unit[0])
+		symbolString += r"|" + re.escape(unit[0])
 	for unit in cursor.fetchall():
 		while len(inflections) <= unit[1]:
 			inflections.append([])
 		inflections[unit[1]].append(unit[0])
 		if not unit[2] is None:
-			prefixString += r"|" + re.escape(unit[2])
+			symbolString += r"|" + re.escape(unit[2])
 	
 	unitString = r""
 	for inflection, units in enumerate(inflections):
@@ -262,28 +284,15 @@ def getUnitMatch():
 					if i > 0:
 						unitString += r"|"
 					unitString += re.escape(unit.replace("o", "e").replace("O", "E"))
-	# (?<!\w)(\d+(?:[\.\, ]\d+)*) *(square|cubic)? *() *(squared|cube|(?:\^ *)?(2|3))?( *(\*|\/|times|(p|div|mult)\w*) *())?(?!\w)
-	# (?<!\w)(\d+(?:[\.\, ]\d+)*)(( *(''?)(?: *(\d+(?:[\.\, ]\d+)*)(?: *(''?))?)?)|(?:(?: *(?:square|cubic))? *(?:meters?)(?: *(?:squared|cube|\^? *(?:2|3)))?(?: *(?:\*|\/|times|(?:p|div|mult)\w*))?)+)(?!\w)
-	#final = r"(?<!\w)(\d+(?:[\.\, ]\d+)*) *(square|cubic)? *(''?|" + unitString + prefixString + r") *((\d+(?:[\.\, ]\d+)*) *(''?)|(squared|cube|(?:\^ *)?(2|3))?"
-	#amount = 2
-	#unitPart = r" *((\*|\/|times|(p|div|mult)\w* *)(square|cubic)? *(" + unitString + prefixString + r") *(squared|cube|(?:\^ *)?(2|3)"
-	#final += unitPart * (amount - 1) + r")?" * (amount) + r")(?!\w)"
-	#return re.compile(r"(?<!\w)(\d+(?:[\.\, ]\d+)*) *(" + unitString + prefixString + r"|(''?)(?: *(\d+(?:[\.\, ]\d+)*) *(''?)?)?)(?!\w)", re.IGNORECASE)
-	return unitString + prefixString
+	return unitString + symbolString
+
+def getPrefixMatch():
+	return r"(?:" + r"|".join(list(siPrefixes.keys()) + list(siSymbols.keys())) + r")"
 
 def getFindPattern():
-	capture = r"(?<!\w)((?:\d+(?:[\.\, ]\d+)* *(?:''?|(?:(?:(?:square|cubic) *)?(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|(?: *\^ *)?(?:2|3))?(?: *(?:\*|\/|\\|\+|times|plus|and|a|(?:p|div|mult)\w*))? *)+) *)+)(?!\w)"
-	print(capture)
-	return re.compile(capture, re.IGNORECASE)
+	return re.compile(r"(?<!\w)((?:\d+(?:[\.\, ]\d+)* *(?:''?|(?:(?:(?:square|cubic) *)?(?:" + getPrefixMatch() + r" *)?(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|(?: *\^ *)?(?:2|3))?(?: *(?:\*|\/|\\|\+|times|plus|and|a|(?:p|div|mult)\w*))? *)+) *)+)(?!\w)", re.IGNORECASE)
 
-def getSiUnit(unitType):
-	if unitType == "area":
-		return "square " + siUnits["length"]
-	elif unitType == "volume":
-		return "cubic " + siUnits["length"]
-	return siUnits[unitType]
-
-# Temporary solution, should be replaced with base 10 ground equation.
+# TODO: Replaced with base 10 ground equation.
 # https://www.kite.com/python/answers/how-to-round-a-number-to-significant-digits-in-python
 # https://stackoverflow.com/a/55975216/13347795
 def significantFigures(value, figures = 3):
@@ -300,12 +309,3 @@ def pluralUnit(name, inflection = 0):
 		return name.replace("o", "e").replace("O", "E")
 	return name
 dataModule.connection.create_function("pluralUnit", 2, pluralUnit)
-
-# Probably unnecessary.
-#def matchAny(checkString, target):
-#	if not checkString is None:
-#		for element in checkString.split():
-#			if element == target:
-#				return True
-#	return False
-#dataModule.connection.create_function("matchAny", 2, matchAny)
