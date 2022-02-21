@@ -22,7 +22,7 @@ siPrefixes = {
 # Non case-sensitive prefix symbols.
 siSymbols = {
 	"da": 1, "h": 2, "k": 3, "g": 9, "t": 12, "e": 18,
-	"d": -1, "c": -2, "m": -3, "u": -6, "μ": -6, "n": -9, "n": -9, "f": -15, "a": -18
+	"d": -1, "c": -2, "m": -3, "u": -6, "μ": -6, "n": -9, "n": -9, "f": -15#, "a": -18 TODO: Improve regex capture to handle gal as the gallon symbol, and not gram plus atto liter.
 }
 
 # Case-sensitive prefix symbols. TODO: Fix case-sensitive prefix symbols.
@@ -35,9 +35,9 @@ class BaseUnit():
 	def convert(self):
 		self.conversion = 1
 		for factor in self.factors:
-			self.conversion *= factor.conversion ** factor.exponent * 10 ** factor.base
+			self.conversion *= (factor.conversion ** factor.exponent) * 10 ** factor.base
 		for divisor in self.divisors:
-			self.conversion /= divisor.conversion ** divisor.exponent / 10 ** factor.base
+			self.conversion /= (divisor.conversion ** divisor.exponent) * 10 ** divisor.base
 	
 	class Part():
 		def __init__(self, name):
@@ -49,7 +49,7 @@ class BaseUnit():
 			self.si = False
 
 			for siType, siName in siUnits.items():
-				if self.name.lower() == siName:
+				if self.name.lower() == siName or self.name.lower() == siName[0]:
 					print("SI unit.")
 					self.unitType = siType
 					self.si = True
@@ -63,8 +63,16 @@ LIMIT 1;""", [self.name])
 			cursor.close()
 			if not result is None:
 				print(result)
-				self.unitType = result[0]
-				self.conversion = (result[1] * 10 ** result[2])
+				types = result[0].strip().split()
+				if len(types) >= 2 and types[1].isdigit(): # I'm not trusting that goddamn database!
+					self.unitType = types[0]
+					self.exponent *= int(types[1])
+				elif len(types) >= 2 and types[0].isdigit():
+					self.unitType = types[1]
+					self.exponent *= int(types[0])
+				elif len(types) >= 1:
+					self.unitType = types[0]
+				self.conversion = (result[1] * 10 ** result[2]) ** (1 / self.exponent) # Raised to power of 1 divided by exponent because exponent is already included in conversion number.
 			else:
 				print(f"Couldn't find unit \"{self.name}\" in database.")
 		
@@ -108,7 +116,7 @@ class Unit(BaseUnit):
 		self.divisors = []
 
 		# Goes through all parts of the unit and adds sub-units accordingly.
-		capture = r"(?<!\w)(?:(\d+(?:[\.\, ]\d+)*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?(?:(?:(" + r"|".join(list(siPrefixes.keys())) + r")|(" + r"|".join(list(siSymbols.keys())) + r")) *)?((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?|(?:\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|(?:div|p)\w*))(?!\w)"
+		capture = r"(?:(?<!\w)(\d+(?:[\.\, ]\d+)*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?(?:(?:(" + r"|".join(list(siPrefixes.keys())) + r")|(" + r"|".join(list(siSymbols.keys())) + r")) *)?((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?|(?:\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|p|per|div\w*))"
 		print(capture)
 		dividing = False
 		subUnit = None
@@ -135,18 +143,18 @@ class Unit(BaseUnit):
 				# Prefix			
 				if parts[4].lower() in siPrefixes:
 					part.base += siPrefixes[parts[4].lower()]
-				elif parts[4].lower() in siSymbols:
-					part.base += siSymbols[parts[4].lower()]
+				elif parts[5].lower() in siSymbols:
+					part.base += siSymbols[parts[5].lower()]
 
 				if parts[2] != "" or parts[7] != "": # Squared.
-					part.exponent = 2
+					part.exponent *= 2
 				elif parts[3] != "" or parts[8] != "": # Cubed.
-					part.exponent = 3
+					part.exponent *= 3
 			elif parts[9] != "": # Divsion.
 				dividing = not dividing
 			# Addition and multiplication do not matter.
 		
-		for subUnit in self.subUnits: # TODO: Optimize
+		for subUnit in self.subUnits: # TODO: Optimize.
 			self.iso += subUnit.iso
 			for mainFactor in self.factors:
 				while mainFactor in subUnit.factors:
@@ -290,7 +298,7 @@ def getPrefixMatch():
 	return r"(?:" + r"|".join(list(siPrefixes.keys()) + list(siSymbols.keys())) + r")"
 
 def getFindPattern():
-	return re.compile(r"(?<!\w)((?:\d+(?:[\.\, ]\d+)* *(?:''?|(?:(?:(?:square|cubic) *)?(?:" + getPrefixMatch() + r" *)?(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|(?: *\^ *)?(?:2|3))?(?: *(?:\*|\/|\\|\+|times|plus|and|a|(?:p|div|mult)\w*))? *)+) *)+)(?!\w)", re.IGNORECASE)
+	return re.compile(r"(?<!\w)((?:\d+(?:[\.\, ]\d+)* *(?:''?|(?:(?:(?:square|cubic) *)?(?:" + getPrefixMatch() + r" *)?(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|(?: *\^ *)?(?:2|3))?(?: *(?:\*|\/|\\|\+|times|plus|and|a|p|per|(?:div|mult)\w*))? *)+) *)+)(?!\w)", re.IGNORECASE)
 
 # TODO: Replaced with base 10 ground equation.
 # https://www.kite.com/python/answers/how-to-round-a-number-to-significant-digits-in-python
