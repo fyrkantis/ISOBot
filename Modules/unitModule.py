@@ -19,12 +19,20 @@ siPrefixes = {
 }
 
 class BaseUnit():
+	def convert(self):
+		self.conversion = 1
+		for factor in self.factors:
+			self.conversion *= factor.conversion ** factor.exponent * 10 ** factor.base
+		for divisor in self.divisors:
+			self.conversion /= divisor.conversion ** divisor.exponent / 10 ** factor.base
+	
 	class Part():
 		def __init__(self, name):
 			self.name = name
 			self.unitType = None
 			self.conversion = 1
 			self.exponent = 1
+			self.base = 0
 			self.si = False
 
 			for siType, siName in siUnits.items():
@@ -43,18 +51,18 @@ LIMIT 1;""", [self.name])
 			if not result is None:
 				print(result)
 				self.unitType = result[0]
-				self.conversion = (result[1] * 10 ** result[2]) ** self.exponent
+				self.conversion = (result[1] * 10 ** result[2])
 			else:
 				print(f"Couldn't find unit \"{self.name}\" in database.")
 		
 		def __eq__(self, other):
-			return isinstance(other, BaseUnit.Part) and self.unitType == other.unitType and self.exponent == other.exponent and self.conversion == other.conversion
+			return isinstance(other, BaseUnit.Part) and self.unitType == other.unitType and self.exponent == other.exponent
 		
 		def __str__(self):
-			return f"{self.name}^{self.exponent}, {self.unitType} unit with conversion {self.conversion}. SI: {self.si}"
+			return f"{self.name}^{self.exponent} * 10^{self.base}, {self.unitType} unit with conversion {self.conversion}. SI: {self.si}"
 		
 		def __repr__(self):
-			return f"{self.name}^{self.exponent} {self.unitType} {self.conversion}"
+			return f"{self.name}^{self.exponent} * 10^{self.base} {self.unitType} {self.conversion}"
 
 	class Iso():
 		def __init__(self):
@@ -105,7 +113,6 @@ class Unit(BaseUnit):
 						part = subUnit.Part("inch")
 				else: # Unit
 					part = subUnit.Part(parts[4])
-				print(self)
 				self.addDuring(part, subUnit, dividing) # TODO: 5 square inches and 7 feet per second.
 				if not part.si:
 					subUnit.iso.unit = False
@@ -125,6 +132,8 @@ class Unit(BaseUnit):
 			for mainDivisor in self.divisors:
 				while mainDivisor in subUnit.divisors:
 					subUnit.divisors.remove(mainDivisor)
+			subUnit.convert()
+		self.convert()
 	
 	# Adds a part to a sub unit and handles the shared lists as well.
 	def addDuring(self, part, subUnit, dividing = False):
@@ -136,7 +145,7 @@ class Unit(BaseUnit):
 			subUnit.divisors.append(part)
 		foundInMain = False
 		for mainPart in mainParts:
-			if part.unitType == mainPart.unitType and part.exponent == mainPart.exponent:
+			if part.unitType == mainPart.unitType and part.conversion == mainPart.conversion and part.base == mainPart.base:
 				foundInMain = True
 				if part.conversion != mainPart.conversion:
 					foundInMain = mainPart
@@ -156,6 +165,7 @@ class Unit(BaseUnit):
 					subParts = unit.factors
 				else:
 					subParts = unit.divisors
+				print(subParts)
 				found = part in subParts
 				if not foundInMain is False:
 					if not found:
@@ -170,12 +180,12 @@ class Unit(BaseUnit):
 					mainParts.append(part)
 			else:
 				mainParts.remove(mainPart)
-
-	def containsAll(self):
-		pass
 	
 	def isoString(self):
-		return "¯\_(ツ)_/¯"
+		converted = 0
+		for subUnit in self.subUnits:
+			converted += subUnit.amount * subUnit.conversion * self.conversion
+		return significantFigures(converted)
 	
 	def __str__(self):
 		return f"{self.rawInput}, parts: {self.factors} / {self.divisors}, sub-units: {self.subUnits}\nISO: {self.iso}"
