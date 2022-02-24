@@ -21,8 +21,8 @@ siPrefixes = {
 
 # Non case-sensitive prefix symbols.
 siSymbols = {
-	"da": 1, "h": 2, "k": 3, "g": 9, "t": 12, "e": 18,
-	"d": -1, "c": -2, "m": -3, "u": -6, "μ": -6, "n": -9, "n": -9, "f": -15#, "a": -18 TODO: Improve regex capture to handle gal as the gallon symbol, and not gram plus atto liter.
+	"da": 1, "h": 2, "k": 3,# "g": 9, "t": 12, "e": 18,
+	"d": -1, "c": -2, "m": -3#, "u": -6, "μ": -6, "n": -9, "n": -9, "f": -15#, "a": -18 TODO: Improve regex capture to handle gal as the gallon symbol, and not gram plus atto liter.
 }
 
 # Case-sensitive prefix symbols. TODO: Fix case-sensitive prefix symbols.

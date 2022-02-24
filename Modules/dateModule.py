@@ -128,6 +128,7 @@ class DateFormat():
 		
 		self.alternatives = []
 		self.iso = self.Iso(lines = self.lines) # Everything that's wrong with all alternatives no matter what.
+		self.iso.order = False # Assumes the order is wrong.
 
 		# Tests possible combinations.
 		# TODO: Optimization that removes duplicates of arrays with only one possibility in them.
@@ -180,17 +181,22 @@ class DateFormat():
 		if date.valid is False:
 			return
 
-		# Tries to find a fitting dateAlt for the tag to be sorted into.
-		for i in range(len(self.alternatives)):
-			if self.alternatives[i].date == date:
-				self.alternatives[i].tags.append(tokens)
-				self.alternatives[i].iso.checkTokens(tokens)
-				self.iso.compareBools(self.alternatives[i].iso)
+		# Tries to find a fitting alternative for the tag to be sorted into.
+		for alternative in self.alternatives:
+			if alternative.date == date:
+				alternative.tags.append(tokens)
+				alternative.iso.checkTokens(tokens)
+				self.iso += alternative.iso
+				if alternative.iso.order:
+					self.iso.order = True
 				return
-		# Adds another dateAlt if one doesn't already exist.
-		dateAlt = self.Alternative(date, tokens, self.Iso(tokens, self.lines))
-		self.iso.compareBools(dateAlt.iso)
-		self.alternatives.append(dateAlt)
+		
+		# Adds another alternative if one doesn't already exist.
+		alternative = self.Alternative(date, tokens, self.Iso(tokens, self.lines))
+		self.iso += alternative.iso
+		if alternative.iso.order:
+			self.iso.order = True
+		self.alternatives.append(alternative)
 	
 	# Returns a string of how the date was originally written.
 	def write(self, tags = None):
@@ -214,10 +220,10 @@ class DateFormat():
 	# An analysis of how iso-8601 compliant a date format could be.
 	class Iso():
 		def __init__(self, tokens = None, lines = None):
-			self.order = False
-			self.types = False
-			self.lines = False
-			self.spaces = False
+			self.order = True
+			self.types = True
+			self.lines = True
+			self.spaces = True
 
 			if not tokens is None:
 				self.checkTokens(tokens)
@@ -226,42 +232,34 @@ class DateFormat():
 
 		def checkTokens(self, tokens):
 			# Checks if the tag order is correct.
-			if not self.order:
-				if (len(tokens) == 3 and tokens[0][0] == "Y" and tokens[1][0] == "M" and tokens[2][0] == "D") or (len(tokens) == 2 and ((tokens[0][0] == "Y" and tokens[1][0] == "M") or (tokens[0][0] == "M" and tokens[0][0] == "D"))):
-					self.order = True
+			if self.order and (len(tokens) == 3 and not (tokens[0][0] != "Y" and tokens[1][0] == "M" and tokens[2][0] == "D")) or (len(tokens) == 2 and not ((tokens[0][0] == "Y" and tokens[1][0] == "M") or (tokens[0][0] == "M" and tokens[0][0] == "D"))):
+				self.order = False
 			
 			# Checks if the tag lengths are correct. TODO: Fix detection for written months.
-			if not self.types:
+			if self.types:
 				for token in tokens:
 					if (token[0] == "Y" and len(token) != 4) or ((token[0] == "M" or token[0] == "D") and len(token) != 2):
-						return
-				self.types = True
+						self.types = False
+						break
 
 		def checkLines(self, lines):
-			if not self.lines or not self.spaces:
-				isoLines = True
-				isoSpaces = True
-
-				# Checks if all the lines are correct.
+			# Checks if all the lines are correct.
+			if self.lines or self.spaces:
 				for line in lines:
 					if line.strip() == "-":
 						if line != "-":
-							isoSpaces = False
+							self.spaces = False
 					else:
-						isoLines = False
-				
-				if not self.lines and isoLines:
-					self.lines = True
-				
-				if not self.spaces and isoSpaces:
-					self.spaces = True
+						self.lines = False
 		
-		# Updates self so that it also applies to other iso.
-		def compareBools(self, compare):
-			if not self.order:
-				self.order = compare.order
-			if not self.types:
-				self.types = compare.types
+		# Updates self so that it also applies to other iso. Order is omitted.
+		def __add__(self, other):
+			send = DateFormat.Iso()
+			send.order = self.order
+			send.types = self.types and other.types
+			send.lines = self.lines and other.lines
+			send.spaces = self.spaces and other.spaces
+			return send
 		
 		# Returns if iso is possible
 		def __bool__(self):

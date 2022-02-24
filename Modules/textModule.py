@@ -4,6 +4,16 @@ from . import dataModule
 from random import randint, choice
 from datetime import datetime, timedelta
 
+def grammaticList(elements, last = "and"):
+	send = ""
+	for i, element in enumerate(elements):
+		send += element
+		if i + 2 < len(elements):
+			send += ", "
+		elif i + 2 == len(elements):
+			send += " " + last + " "
+	return send
+
 class Sentence():
 	def __init__(self, message):
 		self.skew = 0
@@ -119,12 +129,12 @@ SELECT * FROM"""
 		return send
 
 	# Analysis of single date.
-	def dateAnalysis(self, date, shorten = False):
+	def dateAnalysis(self, date):#, shorten = False):
 		alternatives = date.alternatives
 		send = ""
-		feedback = self.isoFeedback(date.iso)
-		if not feedback == "":
-			send += f"You should fix this date by {feedback}.\n\n"
+		#feedback = self.isoFeedback(date.iso)
+		#if not feedback == "":
+		#	send += f"You should fix this date by {feedback}.\n\n"
 		if len(alternatives) == 1:
 			send += "This must mean "
 		else:
@@ -158,46 +168,39 @@ SELECT * FROM"""
 				else:
 					send += self.word(["degree", randint(0, 1), "binder", randint(0, 1), "adjective"]).rstrip()
 			send += ".\n"
-			if not shorten:
-				altFeedback = self.isoFeedback(dateAlt.iso, date.iso)
-				if not altFeedback == "":
-					start = ""
-					if randint(0, 1) == 0:
-						start += "You should "
-					start += self.word(["binder", randint(0, 1)]) + "fix this date by "
-					send += start[0].upper() + start[1:] + altFeedback + ".\n"
+			#if not shorten:
+			#	altFeedback = self.isoFeedback(dateAlt.iso, date.iso)
+			#	if not altFeedback == "":
+			#		start = ""
+			#		if randint(0, 1) == 0:
+			#			start += "You should "
+			#		start += self.word(["binder", randint(0, 1)]) + "fix this date by "
+			#		send += start[0].upper() + start[1:] + altFeedback + ".\n"
 		
-		# Shortens message (crudely if needed) if it's too long.
+		# Shortens message if it's too long.
 		if len(send) > 1024:
-			if shorten:
-				send = send[:1020] + "..."
-			else:
-				send = self.dateAnalysis(date, True)
+			send = send[:1020] + "..."
+			#if shorten:
+			#	send = send[:1020] + "..."
+			#else:
+			#	send = self.dateAnalysis(date, True)
 		return send
 	
-	def isoFeedback(self, iso, negatedIso = None): # negatedIso is used to filter feedback that has already been mentioned.
+	def isoFeedback(self, iso):
 		# Lists everything wrong with the date.
 		fixes = []
-		if not iso.order and (negatedIso is None or negatedIso.order):
+		if not iso.order:
 			if randint(0, 1) == 0:
 				fixes.append(f"ordering the numbers {self.word(['binder', randint(0, 1)])}correctly (as in *year-month-day*)")
 			else:
 				fixes.append(f"ordering the numbers less {self.word(['binder', randint(0, 1), 'adjective'])}(as in *year-month-day*)")
-		if not iso.lines and (negatedIso is None or negatedIso.lines):
+		if not iso.lines:
 			fixes.append("only using lines - as separators (as in *YYYY-MM-DD*)")
-		if not iso.types and (negatedIso is None or negatedIso.types):
-			fixes.append(f"writing the years, months and days as numbers with {self.word(['binder', randint(0, 1)])}leading zeros (as in *1969-12-31* or *2021-04-09*)")
-		if not iso.spaces and (negatedIso is None or negatedIso.spaces):
+		if not iso.types:
+			fixes.append(f"writing the years, months and days as numbers with {self.word(['binder', randint(0, 1)])}leading zeros (as in *1970-01-01* or *2021-02-28*)")
+		if not iso.spaces:
 			fixes.append(f"not using any {self.word('binder', randint(0, 1))} spaces whatsoever")
-		
-		send = ""
-		for j in range(len(fixes)):
-			send += fixes[j]
-			if j + 2 < len(fixes):
-				send += ", "
-			elif j + 2 == len(fixes):
-				send += " and "
-		return send
+		return fixes
 	
 	def unitAnalysis(self, unit, shorten = False):
 		send = ""
@@ -238,6 +241,15 @@ SELECT * FROM"""
 				send = self.unitAnalysis(unit, True)
 		return send
 	
+	def unitFeedback(self, iso):
+		fixes = []
+		if not iso.unit:
+			if randint(0, 1) == 0:
+				fixes.append(f"using correct {self.word(['binder', randint(0, 1)])}units")
+			else:
+				fixes.append(f"not using wrong {self.word(['binder', randint(0, 1)])}units")
+		return fixes
+	
 	def title(self):
 		send = ""
 		if randint(0, 2) != 0:
@@ -255,7 +267,7 @@ SELECT * FROM"""
 		send = send[0].upper() + send[1:]
 		return send
 	
-	def subtitle(self):
+	def subtitle(self, dateIso, unitIso):
 		send = ""
 		if randint(0, 3) == 0:
 			send += "You dun messed up, "
@@ -279,6 +291,8 @@ SELECT * FROM"""
 			send += self.word(["adjective", "binder", randint(0, 1), "object"], grade = 2)
 			send += "I've "
 			send += choice(["ever seen!", "laid my eyes upon!"])
+		send += f"\nYou could fix this date by {grammaticList(self.isoFeedback(dateIso) + self.unitFeedback(unitIso))}."
+		
 		return send
 	
 	def footer(self):

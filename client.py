@@ -41,6 +41,8 @@ class MyClient(discord.Client):
 			if len(foundDates) > 0 or len(foundUnits) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
 				print(foundUnits)
+
+				dateIso = dateModule.DateFormat.Iso()
 				dates = []
 				for date in foundDates:
 					toAdd = dateModule.DateFormat(date)
@@ -56,7 +58,11 @@ class MyClient(discord.Client):
 						print("Maybe not a date.")
 						continue
 					print("Wrong format")
+					dateIso += toAdd.iso
+					dateIso.order = dateIso.order and toAdd.iso.order
 					dates.append(toAdd)
+				
+				unitIso = unitModule.BaseUnit.Iso()
 				units = []
 				for unit in foundUnits:
 					toAdd = unitModule.Unit(unit)
@@ -68,14 +74,16 @@ class MyClient(discord.Client):
 					if len(toAdd.subUnits) <= 0:
 						print("Not a unit.")
 						continue
-					print("Wrong unit.")
+					print("Wrong unit."
+					)
+					unitIso += toAdd.iso
 					units.append(toAdd)
 				
 				# TODO: Move feedback to embed description.
 				
 				if len(dates) > 0 or len(units) > 0:
 					sentence = textModule.Sentence(message)
-					embed = discord.Embed(title = sentence.title(), description = sentence.subtitle(), color = 0xe4010c)
+					embed = discord.Embed(title = sentence.title(), description = sentence.subtitle(dateIso, unitIso), color = 0xe4010c)
 					file = discord.File("Assets/warning.png", filename="warning.png")
 					embed.set_thumbnail(url="attachment://warning.png")
 
