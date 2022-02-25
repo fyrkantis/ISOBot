@@ -236,7 +236,7 @@ class DateFormat():
 			if self.types:
 				for token in tokens:
 					if (token[0] == "Y" and len(token) != 4) or ((token[0] == "M" or token[0] == "D") and len(token) != 2):
-						self.types = True
+						self.types = False
 						break
 
 		def checkLines(self, lines):
