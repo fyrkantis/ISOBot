@@ -186,15 +186,13 @@ class DateFormat():
 				alternative.tags.append(tokens)
 				alternative.iso.checkTokens(tokens)
 				self.iso += alternative.iso
-				if alternative.iso.order:
-					self.iso.order = True
+				self.iso.order = self.iso.order or alternative.iso.order
 				return
 		
 		# Adds another alternative if one doesn't already exist.
 		alternative = self.Alternative(date, tokens, self.Iso(tokens, self.lines))
 		self.iso += alternative.iso
-		if alternative.iso.order:
-			self.iso.order = True
+		self.iso.order = self.iso.order or alternative.iso.order
 		self.alternatives.append(alternative)
 	
 	# Returns a string of how the date was originally written.
@@ -231,14 +229,14 @@ class DateFormat():
 
 		def checkTokens(self, tokens):
 			# Checks if the tag order is correct.
-			if not self.order and (len(tokens) == 3 and (tokens[0][0] != "Y" and tokens[1][0] == "M" and tokens[2][0] == "D")) or (len(tokens) == 2 and ((tokens[0][0] == "Y" and tokens[1][0] == "M") or (tokens[0][0] == "M" and tokens[0][0] == "D"))):
+			if not self.order and (len(tokens) == 3 and tokens[0][0] == "Y" and tokens[1][0] == "M" and tokens[2][0] == "D") or (len(tokens) == 2 and (tokens[0][0] == "Y" and tokens[1][0] == "M") or (tokens[0][0] == "M" and tokens[0][0] == "D")):
 				self.order = True
 			
 			# Checks if the tag lengths are correct. TODO: Fix detection for written months.
 			if self.types:
 				for token in tokens:
 					if (token[0] == "Y" and len(token) != 4) or ((token[0] == "M" or token[0] == "D") and len(token) != 2):
-						self.types = False
+						self.types = True
 						break
 
 		def checkLines(self, lines):

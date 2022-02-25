@@ -1,4 +1,4 @@
-from Modules import dateModule, inputModule, textModule, unitModule
+from Modules import dateModule, inputModule, textModule
 
 # External Libraries
 import os
@@ -28,7 +28,6 @@ class MyClient(discord.Client):
 				send += "\" and \""
 			else:
 				send += "\"."
-		unitModule.getFindPattern()
 		print(send)
 		inputModule.addSlashCommands(self, ids)
 		print("Successfully added slash commands.")
@@ -36,13 +35,12 @@ class MyClient(discord.Client):
 	async def on_message(self, message):
 		if not message.author.bot:
 			foundDates = dateModule.pattern.findall(message.content)
-			foundUnits = unitModule.getFindPattern().findall(message.content)
 			foundIso = False
-			if len(foundDates) > 0 or len(foundUnits) > 0:
+			if len(foundDates) > 0:
 				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
-				print(foundUnits)
 
 				dateIso = dateModule.DateFormat.Iso()
+				dateIso.order = True # Assumes order is correct.
 				dates = []
 				for date in foundDates:
 					toAdd = dateModule.DateFormat(date)
@@ -62,36 +60,14 @@ class MyClient(discord.Client):
 					dateIso.order = dateIso.order and toAdd.iso.order
 					dates.append(toAdd)
 				
-				unitIso = unitModule.BaseUnit.Iso()
-				units = []
-				for unit in foundUnits:
-					toAdd = unitModule.Unit(unit)
-					print(toAdd, end = " ")
-					if toAdd.iso:
-						foundIso = True
-						print("ISO unit.")
-						continue
-					if len(toAdd.subUnits) <= 0:
-						print("Not a unit.")
-						continue
-					print("Wrong unit."
-					)
-					unitIso += toAdd.iso
-					units.append(toAdd)
-				
-				# TODO: Move feedback to embed description.
-				
-				if len(dates) > 0 or len(units) > 0:
+				if len(dates) > 0:
 					sentence = textModule.Sentence(message)
-					embed = discord.Embed(title = sentence.title(), description = sentence.subtitle(dateIso, unitIso), color = 0xe4010c)
+					embed = discord.Embed(title = sentence.title(), description = sentence.subtitle(dateIso), color = 0xe4010c)
 					file = discord.File("Assets/warning.png", filename="warning.png")
 					embed.set_thumbnail(url="attachment://warning.png")
 
 					for date in dates:
 						embed.add_field(name = f"**{date.write()}**", value = sentence.dateAnalysis(date), inline = False)
-
-					for unit in units:
-						embed.add_field(name = f"**{unit.rawInput}**", value = sentence.unitAnalysis(unit), inline = False)
 					
 					embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png?size=256") # TODO: Test stability.
 					await message.reply(file = file, embed = embed)

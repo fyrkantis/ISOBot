@@ -202,54 +202,6 @@ SELECT * FROM"""
 			fixes.append(f"not using any {self.word('binder', randint(0, 1))} spaces whatsoever")
 		return fixes
 	
-	def unitAnalysis(self, unit, shorten = False):
-		send = ""
-		if randint(0, 1) == 0:
-			if randint(0, 2) == 0:
-				send += "Which "
-			else:
-				send += "This "
-			if randint(0, 1) == 0:
-				send += f"is actually {self.word(['binder', randint(0, 1)])}**{unit.isoString()}**."
-			else:
-				send += f"should be {self.word(['binder', randint(0, 1)])}written as \"**{unit.isoString()}**\"."
-		else:
-			send += f"I think you meant to {self.word(['binder', randint(0, 1)])}say \"**{unit.isoString()}**\"."
-
-		if randint(0, 1) == 0:
-			send += f"\nDon't use *{unit.name}*"
-			if randint(0, 1) == 0:
-				randomBinder = randint(0, 1)
-				send += f", you {self.word(['adjective', randint(0, randomBinder), 'binder', randomBinder, 'adjective', randint(0, 1), 'insult'])[:-1]}"
-			send += "!"
-		else:
-			send += "\nWhy "
-			randomComment = randint(0, 1)
-			randomState = randint(0, randomComment)
-			if randomState > 0:
-				send += "in "
-			if randomComment > 0:
-				send += "the "
-			send += self.word(['state', randomState, 'binder', randomState, randint(0, 1), 'comment', randomComment])
-			send += f"are you using *{unit.name}*!?"
-
-		# Shortens message (crudely if needed) if it's too long.
-		if len(send) > 1024:
-			if shorten:
-				send = send[:1020] + "..."
-			else:
-				send = self.unitAnalysis(unit, True)
-		return send
-	
-	def unitFeedback(self, iso):
-		fixes = []
-		if not iso.unit:
-			if randint(0, 1) == 0:
-				fixes.append(f"using correct {self.word(['binder', randint(0, 1)])}units")
-			else:
-				fixes.append(f"not using wrong {self.word(['binder', randint(0, 1)])}units")
-		return fixes
-	
 	def title(self):
 		send = ""
 		if randint(0, 2) != 0:
@@ -267,7 +219,7 @@ SELECT * FROM"""
 		send = send[0].upper() + send[1:]
 		return send
 	
-	def subtitle(self, dateIso, unitIso):
+	def subtitle(self, dateIso):
 		send = ""
 		if randint(0, 3) == 0:
 			send += "You dun messed up, "
@@ -291,7 +243,7 @@ SELECT * FROM"""
 			send += self.word(["adjective", "binder", randint(0, 1), "object"], grade = 2)
 			send += "I've "
 			send += choice(["ever seen!", "laid my eyes upon!"])
-		send += f"\nYou could fix this date by {grammaticList(self.isoFeedback(dateIso) + self.unitFeedback(unitIso))}."
+		send += f"\nYou could fix this date by {grammaticList(self.isoFeedback(dateIso))}."
 		
 		return send
 	
