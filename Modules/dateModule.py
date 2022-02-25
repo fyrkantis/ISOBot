@@ -128,7 +128,6 @@ class DateFormat():
 		
 		self.alternatives = []
 		self.iso = self.Iso(lines = self.lines) # Everything that's wrong with all alternatives no matter what.
-		self.iso.order = False # Assumes the order is wrong.
 
 		# Tests possible combinations.
 		# TODO: Optimization that removes duplicates of arrays with only one possibility in them.
@@ -220,7 +219,7 @@ class DateFormat():
 	# An analysis of how iso-8601 compliant a date format could be.
 	class Iso():
 		def __init__(self, tokens = None, lines = None):
-			self.order = True
+			self.order = False # Assumes the order is wrong.
 			self.types = True
 			self.lines = True
 			self.spaces = True
@@ -232,8 +231,8 @@ class DateFormat():
 
 		def checkTokens(self, tokens):
 			# Checks if the tag order is correct.
-			if self.order and (len(tokens) == 3 and not (tokens[0][0] != "Y" and tokens[1][0] == "M" and tokens[2][0] == "D")) or (len(tokens) == 2 and not ((tokens[0][0] == "Y" and tokens[1][0] == "M") or (tokens[0][0] == "M" and tokens[0][0] == "D"))):
-				self.order = False
+			if not self.order and (len(tokens) == 3 and (tokens[0][0] != "Y" and tokens[1][0] == "M" and tokens[2][0] == "D")) or (len(tokens) == 2 and ((tokens[0][0] == "Y" and tokens[1][0] == "M") or (tokens[0][0] == "M" and tokens[0][0] == "D"))):
+				self.order = True
 			
 			# Checks if the tag lengths are correct. TODO: Fix detection for written months.
 			if self.types:

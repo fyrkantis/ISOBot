@@ -10,7 +10,8 @@ siUnits = {
 	"energy": "joule",
 	"time": "second",
 	"force": "newton",
-	"power": "watt"
+	"effect": "watt",
+	"pressure": "pascal"
 }
 
 # Non case-sensitive prefixes.
@@ -175,12 +176,13 @@ class Unit(BaseUnit):
 			subUnit.divisors.append(part)
 		foundInMain = False
 		for mainPart in mainParts:
-			if part.unitType == mainPart.unitType and part.conversion == mainPart.conversion and part.base == mainPart.base:
+			if part == mainPart:
 				foundInMain = True
-				if part.conversion != mainPart.conversion:
+				if part.conversion != mainPart.conversion or part.base != mainPart.base:
 					foundInMain = mainPart
 				break
 		
+		#print(f"foundInMain: {foundInMain}")
 		# Values of foundInMain:
 		# False, not found in main list and should be added if it's not already in a sub unit.
 		# True, found in main list with the same type, nothing needs to be done here.
@@ -204,7 +206,8 @@ class Unit(BaseUnit):
 					if found:
 						foundInAny = True
 						break
-		
+			
+			#print(f"foundInAny: {foundInAny}")
 			if foundInMain is False:
 				if not foundInAny:
 					mainParts.append(part)
