@@ -2,8 +2,7 @@
 import re
 
 months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-#(?<!(?P<look>(?P<line>[\/\\\-])|[\d\w\+\*=]))(?P<first>(?P<value>(?P<number>\d{1,4})|(?P<month>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<second>(?P<middle> *(?:\g<line>|(?:st|nd|rd|th)?(?: *(,|of|month|year)?)*) *)\g<value>)(?P<third>\g<middle>\g<value>)?(?!\g<look>)
-pattern = re.compile(r"(?<!(?:[\/\\\-\d\w\+\*=]))(?:(?P<number1>\d{1,4})|(?P<month1>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle1> *(?:[\/\\\-]|(?:st|nd|rd|th)?(?: +(?:,|of|the|month|year)?)*) *)(?:(?P<number2>\d{1,4})|(?P<month2>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle2> *(?:[\/\\\-]|(?:st|nd|rd|th)?(?: +(?:,|of|the|month|year)?)*) *)(?:(?P<number3>\d{1,4})|(?P<month3>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))?(?!(?:[\/\\\-\d\w\+\*=]))", re.IGNORECASE)
+pattern = re.compile(r"(?<!(?:[\/\\\-\d\w\+\*=]))(?:(?P<number1>\d{1,4})|(?P<month1>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle1> *(?:[\/\\\- ]| *(?:(?:st|nd|rd|th|(?:o?n)?(?:d|:)?e|,|of|the|month|year) *)+))(?:(?P<number2>\d{1,4})|(?P<month2>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle2> *(?:[\/\\\- ]|(?:(?:(?:st|nd|rd|th|(?:o?n)?(?:d|:)?e|,|of|the|month|year) *)+)*))(?:(?P<number3>\d{1,4})|(?P<month3>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))?(?!(?:[\/\\\-\d\w\+\*=]))", re.IGNORECASE)
 
 class Date():
 	def __init__(self, tokens, values, inputs = None):
@@ -152,13 +151,10 @@ class DateFormat():
 		tag = ["Y" * len(part)] # List of possible meanings, could always be a year.
 
 		# Looks for other fitting tags.
-		if len(part) <= 2:
-			if value <= 31:
-				if value <= 12:
-					tag.append("M" * len(part))
+		if len(part) <= 2 and value <= 31:
+			if value <= 12:
+				tag.append("M" * len(part))
 				tag.append("D" * len(part))
-		else:
-			self.definetlyDate = True
 		self.tags.append(tag)
 	
 	def addText(self, part):
