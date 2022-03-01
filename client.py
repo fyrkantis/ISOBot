@@ -2,46 +2,49 @@ from Modules import dateModule, inputModule, textModule, unitModule
 
 # External Libraries
 import os
-import discord
-
+from discord import Client, Embed, File, Activity, ActivityType, errors
 from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD = os.getenv("DISCORD_GUILD")
 ID = os.getenv("DISCORD_ID")
+client = Client()
 
-class MyClient(discord.Client):
-	async def on_ready(self):
-		print(f"{self.user} has connected to Discord!")
-		servers = await self.fetch_guilds().flatten()
-		ids = []
-		send = f"Currently connected to {len(servers)} servers: \""
-		for i in range(len(servers)):
-			ids.append(servers[i].id)
-			send += servers[i].name
-			send += "#"
-			send += str(servers[i].id)
-			if i < len(servers) - 2:
-				send += "\", \""
-			elif i == len(servers) - 2:
-				send += "\" and \""
-			else:
-				send += "\"."
-		unitModule.getFindPattern()
-		print(send)
-		inputModule.addSlashCommands(self, ids)
-		print("Successfully added slash commands.")
-	
-	async def on_message(self, message):
-		if not message.author.bot:
-			foundDates = dateModule.pattern.findall(message.content)
-			foundUnits = unitModule.getFindPattern().findall(message.content)
-			foundIso = False
-			if len(foundDates) > 0 or len(foundUnits) > 0:
-				print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
-				print(foundUnits)
+@client.event
+async def on_ready():
+	print(f"{client.user} has connected to Discord!")
+	servers = await client.fetch_guilds().flatten()
+	ids = []
+	send = f"Currently connected to {len(servers)} servers: \""
+	for i in range(len(servers)):
+		ids.append(servers[i].id)
+		send += servers[i].name
+		send += "#"
+		send += str(servers[i].id)
+		if i < len(servers) - 2:
+			send += "\", \""
+		elif i == len(servers) - 2:
+			send += "\" and \""
+		else:
+			send += "\"."
+	print(send)
+	inputModule.addSlashCommands(client, ids)
+	print("Successfully added slash commands.")
+	status = " you, use ISO-8601."
+	activity = ActivityType.watching
+	await client.change_presence(activity = Activity(name = status, type = activity))
+	print(str(activity) + status)
 
+@client.event
+async def on_message(message):
+	if not message.author.bot:
+		foundDates = dateModule.pattern.findall(message.content)
+		foundUnits = unitModule.getFindPattern().findall(message.content)
+		foundIso = False
+		if len(foundDates) > 0 or len(foundUnits) > 0:
+			print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
+			async with message.channel.typing():
 				dateIso = dateModule.DateFormat.Iso()
 				dates = []
 				for date in foundDates:
@@ -79,12 +82,13 @@ class MyClient(discord.Client):
 					unitIso += toAdd.iso
 					units.append(toAdd)
 				
-				# TODO: Move feedback to embed description.
-				
 				if len(dates) > 0 or len(units) > 0:
+					if len(dates) <= 0:
+						dateIso.order = True # Hotfix
+					
 					sentence = textModule.Sentence(message)
-					embed = discord.Embed(title = sentence.title(), description = sentence.subtitle(dateIso, unitIso), color = 0xe4010c)
-					file = discord.File("Assets/warning.png", filename="warning.png")
+					embed = Embed(title = sentence.title(), description = sentence.subtitle(dateIso, unitIso), color = 0xe4010c)
+					file = File("Assets/warning.png", filename="warning.png")
 					embed.set_thumbnail(url="attachment://warning.png")
 
 					for date in dates:
@@ -93,18 +97,16 @@ class MyClient(discord.Client):
 					for unit in units:
 						embed.add_field(name = f"**{unit.rawInput}**", value = sentence.unitAnalysis(unit), inline = False)
 					
-					embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png?size=256") # TODO: Test stability.
+					embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png") # TODO: Test stability.
 					await message.reply(file = file, embed = embed)
 					print("")
 				elif foundIso:
 					await message.add_reaction("✅")
 					print("Date is ISO-8601 compliant.\n")
 
-client = MyClient()
-
 try:
 	client.run(TOKEN)
-except discord.errors.HTTPException as e:
+except errors.HTTPException as e:
 	print(f"Tried to run client but received \"{e}\" from discord:")
 	print(f"Response: {e.response}")
 #https://stackoverflow.com/questions/67268074/discord-py-429-rate-limit-what-does-not-making-requests-on-exhausted-buckets
