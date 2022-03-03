@@ -154,7 +154,7 @@ class DateFormat():
 		if len(part) <= 2 and value <= 31:
 			if value <= 12:
 				tag.append("M" * len(part))
-				tag.append("D" * len(part))
+			tag.append("D" * len(part))
 		self.tags.append(tag)
 	
 	def addText(self, part):
