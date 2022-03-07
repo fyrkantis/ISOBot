@@ -22,8 +22,8 @@ siPrefixes = {
 
 # Non case-sensitive prefix symbols.
 siSymbols = {
-	"da": 1, "h": 2, "k": 3,# "g": 9, "t": 12, "e": 18,
-	"d": -1, "c": -2, "m": -3#, "u": -6, "μ": -6, "n": -9, "n": -9, "f": -15#, "a": -18 TODO: Improve regex capture to handle gal as the gallon symbol, and not gram plus atto liter.
+	"da": 1, "h": 2, "k": 3, "g": 9, "t": 12, "e": 18,
+	"d": -1, "c": -2, "m": -3, "u": -6, "μ": -6, "n": -9, "n": -9, "f": -15#, "a": -18 TODO: Improve regex capture to handle gal as the gallon symbol, and not gram plus atto liter.
 }
 
 # Case-sensitive prefix symbols. TODO: Fix case-sensitive prefix symbols.
@@ -36,9 +36,9 @@ class BaseUnit():
 	def convert(self):
 		self.conversion = 1
 		for factor in self.factors:
-			self.conversion *= (factor.conversion ** factor.exponent) * 10 ** factor.base
+			self.conversion *= (factor.conversion * 10 ** factor.base) ** factor.exponent
 		for divisor in self.divisors:
-			self.conversion /= (divisor.conversion ** divisor.exponent) * 10 ** divisor.base
+			self.conversion /= (divisor.conversion * 10 ** divisor.base) ** divisor.exponent
 	
 	class Part():
 		def __init__(self, name):
@@ -117,7 +117,7 @@ class Unit(BaseUnit):
 		self.divisors = []
 
 		# Goes through all parts of the unit and adds sub-units accordingly.
-		capture = r"(?:(?<!\w)(\d+(?:[\.\, ]\d+)*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?(?:(?:(" + r"|".join(list(siPrefixes.keys())) + r")|(" + r"|".join(list(siSymbols.keys())) + r")) *)?((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?|(?:\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|p|per|div\w*))"
+		capture = r"(?:(?<!\w)(\d+(?:[\.\, ]\d+)*)|(?:\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|per|p|div\w*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?(?:(?:(" + r"|".join(list(siPrefixes.keys())) + r")|(" + r"|".join(list(siSymbols.keys())) + r")) *)??((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?)"
 		print(capture)
 		dividing = False
 		subUnit = None
@@ -129,29 +129,29 @@ class Unit(BaseUnit):
 				dividing = False
 			elif subUnit is None:
 				continue
-			elif parts[1] or parts[6] != "": # Apostrophe(s) or Unit.
-				if parts[1] != "": # Apostrophe(s).
-					if parts[1] == "'":
+			elif parts[2] or parts[7] != "": # Apostrophe(s) or Unit.
+				if parts[2] != "": # Apostrophe(s).
+					if parts[2] == "'":
 						part = subUnit.Part("foot")
 					else:# parts[1] == "''" or parts[1] == "\"":
 						part = subUnit.Part("inch")
 				else: # Unit
-					part = subUnit.Part(parts[6])
+					part = subUnit.Part(parts[7])
 				self.addDuring(part, subUnit, dividing) # TODO: 5 square inches and 7 feet per second.
 				if not part.si:
 					subUnit.iso.unit = False
 
 				# Prefix			
-				if parts[4].lower() in siPrefixes:
-					part.base += siPrefixes[parts[4].lower()]
-				elif parts[5].lower() in siSymbols:
-					part.base += siSymbols[parts[5].lower()]
+				if parts[5].lower() in siPrefixes:
+					part.base += siPrefixes[parts[5].lower()]
+				elif parts[6].lower() in siSymbols:
+					part.base += siSymbols[parts[6].lower()]
 
-				if parts[2] != "" or parts[7] != "": # Squared.
+				if parts[3] != "" or parts[8] != "": # Squared.
 					part.exponent *= 2
-				elif parts[3] != "" or parts[8] != "": # Cubed.
+				elif parts[4] != "" or parts[9] != "": # Cubed.
 					part.exponent *= 3
-			elif parts[9] != "": # Divsion.
+			elif parts[1] != "": # Divsion.
 				dividing = not dividing
 			# Addition and multiplication do not matter.
 		
@@ -301,7 +301,7 @@ def getPrefixMatch():
 	return r"(?:" + r"|".join(list(siPrefixes.keys()) + list(siSymbols.keys())) + r")"
 
 def getFindPattern():
-	return re.compile(r"(?<!\w)((?:\d+(?:[\.\, ]\d+)* *(?:''?|(?:(?:(?:square|cubic) *)?(?:" + getPrefixMatch() + r" *)?(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|(?: *\^ *)?(?:2|3))?(?: *(?:\*|\/|\\|\+|times|plus|and|a|p|per|(?:div|mult)\w*))? *)+) *)+)(?!\w)", re.IGNORECASE)
+	return re.compile(r"(?<!\w)((?:\d+(?:[\.\, ]\d+)* *(?:''?|(?:(?:(?:\*|\/|\\|times|a|per|p|(?:div|mult)\w*) *)?(?:(?:square|cubic) *)?(?:" + getPrefixMatch() + r" *)?(?:" + getUnitMatch() + r")(?: *(?:squared?|cubed?)|(?: *\^ *)?(?:2|3))? *)+)(?:\+|plus|and)? *)+)(?!\w)", re.IGNORECASE)
 
 # TODO: Replaced with base 10 ground equation.
 # https://www.kite.com/python/answers/how-to-round-a-number-to-significant-digits-in-python
