@@ -20,7 +20,7 @@ class Sentence():
 		self.limit = 5
 		self.message = message
 	
-	def word(self, wordTypes, grade = 0, amount = 0):
+	def word(self, wordTypes, grade = 0, amount = 0): # TODO: Add proper error message for entering a string instead of list.
 		wordList = []
 		allTypes = ""
 		for i in range(len(wordTypes)):
@@ -199,7 +199,7 @@ SELECT * FROM"""
 		if not iso.types:
 			fixes.append(f"writing the years, months and days as numbers with {self.word(['binder', randint(0, 1)])}leading zeros (as in *1970-01-01* or *2021-02-28*)")
 		if not iso.spaces:
-			fixes.append(f"not using any {self.word('binder', randint(0, 1))} spaces whatsoever")
+			fixes.append(f"not using any {self.word(['binder'], randint(0, 1))} spaces whatsoever")
 		return fixes
 	
 	def unitAnalysis(self, unit, shorten = False):

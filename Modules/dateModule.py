@@ -2,7 +2,7 @@
 import re
 
 months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-pattern = re.compile(r"(?<!(?:[\/\\\-\d\w\+\*=]))(?:(?P<number1>\d{1,4})|(?P<month1>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle1> *(?:[\/\\\- ]| *(?:(?:st|nd|rd|th|(?:o?n)?(?:d|:)?e|,|of|the|month|year) *)+))(?:(?P<number2>\d{1,4})|(?P<month2>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle2> *(?:[\/\\\- ]|(?:(?:(?:st|nd|rd|th|(?:o?n)?(?:d|:)?e|,|of|the|month|year) *)+)*))(?:(?P<number3>\d{1,4})|(?P<month3>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))?(?!(?:[\/\\\-\d\w\+\*=]))", re.IGNORECASE)
+pattern = re.compile(r"(?<!(?:[\/\\\-\d\w\+\*=]))(?:(?P<number1>\d{1,4})|(?P<month1>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle1> *(?:[\/\\\- ] *|(?:(?:st|nd|rd|th|(?:o?n)?(?:d|:)?e|,|of|the|month|year) *)+))(?:(?P<number2>\d{1,4})|(?P<month2>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))(?P<middle2> *(?:[\/\\\- ] *|(?:(?:(?:st|nd|rd|th|(?:o?n)?(?:d|:)?e|,|of|the|month|year) *)+)*))(?:(?P<number3>\d{1,4})|(?P<month3>(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*))?(?!(?:[\/\\\-\d\w\+\*=]))", re.IGNORECASE)
 
 class Date():
 	def __init__(self, tokens, values, inputs = None):
@@ -108,7 +108,7 @@ class DateFormat():
 		self.values = [] # Years, months and days saved as numbers.
 		self.tags = [] # Tags consist of tokens, ["YYYY", "MM", "DD"] is a tag, "YYYY" is a token.
 		self.lines = [] # Everything between the numbers or month names.
-		self.definetlyDate = None
+		self.definitelyDate = None
 
 		for i, parts in enumerate([raw[:2], raw[3:5], raw[6:]]):
 			if parts[0] != "":
@@ -122,11 +122,20 @@ class DateFormat():
 			elif i == 2:
 				self.lines.append(raw[5])
 		
+		# Some exceptions for written things that are probably not dates.
 		if len(self.inputs) >= 3:
-			self.definetlyDate = True
+			self.definitelyDate = True
+		elif self.values not in [[24, 7], [7, 24]]:
+			found = False
+			for line in self.lines:
+				if line.strip() == "":
+					found = True
+					break
+			if not found:
+				self.definitelyDate = True
 		
 		self.alternatives = []
-		self.iso = self.Iso(lines = self.lines) # Everything that's wrong with all alternatives no matter what.
+		self.iso = self.Iso(lines = self.lines, default = False) # Everything that's wrong with all alternatives no matter what.
 
 		# Tests possible combinations.
 		# TODO: Optimization that removes duplicates of arrays with only one possibility in them.
@@ -142,7 +151,7 @@ class DateFormat():
 							self.addAlt([first, secnd])
 		
 		if len(self.alternatives) <= 0:
-			self.definetlyDate = False
+			self.definitelyDate = False
 	
 	def addNumber(self, part):
 		self.inputs.append(part)
@@ -166,7 +175,7 @@ class DateFormat():
 					self.tags.append(["Mon"])
 				else:
 					self.tags.append(["Month"])
-				self.definetlyDate = True
+				self.definitelyDate = True
 				return
 		self.values.append(0) # TODO: Better error handling.
 		self.tags.append([])
@@ -182,13 +191,11 @@ class DateFormat():
 				alternative.tags.append(tokens)
 				alternative.iso.checkTokens(tokens)
 				self.iso += alternative.iso
-				self.iso.order = self.iso.order or alternative.iso.order
 				return
 		
 		# Adds another alternative if one doesn't already exist.
-		alternative = self.Alternative(date, tokens, self.Iso(tokens, self.lines))
+		alternative = self.Alternative(date, tokens, self.Iso(tokens, self.lines, default = False))
 		self.iso += alternative.iso
-		self.iso.order = self.iso.order or alternative.iso.order
 		self.alternatives.append(alternative)
 	
 	# Returns a string of how the date was originally written.
@@ -212,11 +219,11 @@ class DateFormat():
 	
 	# An analysis of how iso-8601 compliant a date format could be.
 	class Iso():
-		def __init__(self, tokens = None, lines = None):
-			self.order = False # Assumes the order is wrong.
-			self.types = True
-			self.lines = True
-			self.spaces = True
+		def __init__(self, tokens = None, lines = None, default = True):
+			self.order = default
+			self.types = default
+			self.lines = default
+			self.spaces = default
 
 			if not tokens is None:
 				self.checkTokens(tokens)
@@ -224,31 +231,45 @@ class DateFormat():
 				self.checkLines(lines)
 
 		def checkTokens(self, tokens):
-			# Checks if the tag order is correct.
-			if not self.order and (len(tokens) == 3 and tokens[0][0] == "Y" and tokens[1][0] == "M" and tokens[2][0] == "D") or (len(tokens) == 2 and (tokens[0][0] == "Y" and tokens[1][0] == "M") or (tokens[0][0] == "M" and tokens[0][0] == "D")):
+			# Checks if the tag order could be correct.
+			if not self.order and ((len(tokens) == 3 and tokens[0][0] == "Y" and tokens[1][0] == "M" and tokens[2][0] == "D") or (len(tokens) == 2 and ((tokens[0][0] == "Y" and tokens[1][0] == "M") or (tokens[0][0] == "M" and tokens[1][0] == "D")))):
 				self.order = True
 			
-			# Checks if the tag lengths are correct. TODO: Fix detection for written months.
-			if self.types:
+			# Checks if all tag lengths are correct.
+			if not self.types:
+				allRight = True
 				for token in tokens:
-					if (token[0] == "Y" and len(token) != 4) or ((token[0] == "M" or token[0] == "D") and len(token) != 2):
-						self.types = False
+					if token[0][:3] == "Mon" or (token[0] == "Y" and len(token) != 4) or ((token[0] == "M" or token[0] == "D") and len(token) != 2):
+						allRight = False
 						break
+				self.types = self.types or allRight
 
 		def checkLines(self, lines):
 			# Checks if all the lines are correct.
-			if self.lines or self.spaces:
+			if not (self.lines and self.spaces):
+				onlyLines = True
+				noSpaces = True
 				for line in lines:
 					if line.strip() == "-":
 						if line != "-":
-							self.spaces = False
+							noSpaces = False
+
 					else:
-						self.lines = False
+						onlyLines = False
+				self.lines = self.lines or onlyLines
+				self.spaces = self.spaces or noSpaces
 		
-		# Updates self so that it also applies to other iso. Order is omitted.
 		def __add__(self, other):
 			send = DateFormat.Iso()
-			send.order = self.order
+			send.order = self.order or other.order
+			send.types = self.types or other.types
+			send.lines = self.lines or other.lines
+			send.spaces = self.spaces or other.spaces
+			return send
+		
+		def __sub__(self, other):
+			send = DateFormat.Iso()
+			send.order = self.order and other.order
 			send.types = self.types and other.types
 			send.lines = self.lines and other.lines
 			send.spaces = self.spaces and other.spaces

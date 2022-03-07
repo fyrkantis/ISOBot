@@ -44,48 +44,43 @@ async def on_message(message):
 		foundIso = False
 		if len(foundDates) > 0 or len(foundUnits) > 0:
 			print(f"{message.created_at}, #{message.channel.name} in \"{message.channel.guild.name}\" by {message.author}: {message.content}")
-			async with message.channel.typing():
-				dateIso = dateModule.DateFormat.Iso()
-				dates = []
-				for date in foundDates:
-					toAdd = dateModule.DateFormat(date)
-					print(toAdd, end = " ")
-					if toAdd.iso:
-						foundIso = True
-						print("ISO format.")
-						continue
-					if toAdd.definetlyDate == False:
-						print("Definitively not a date.")
-						continue
-					if toAdd.definetlyDate is None:
-						print("Maybe not a date.")
-						continue
-					print("Wrong format")
-					dateIso += toAdd.iso
-					dateIso.order = dateIso.order and toAdd.iso.order
-					dates.append(toAdd)
-				
-				unitIso = unitModule.BaseUnit.Iso()
-				units = []
-				for unit in foundUnits:
-					toAdd = unitModule.Unit(unit)
-					print(toAdd, end = " ")
-					if toAdd.iso:
-						foundIso = True
-						print("ISO unit.")
-						continue
-					if len(toAdd.subUnits) <= 0:
-						print("Not a unit.")
-						continue
-					print("Wrong unit."
-					)
-					unitIso += toAdd.iso
-					units.append(toAdd)
-				
-				if len(dates) > 0 or len(units) > 0:
-					if len(dates) <= 0:
-						dateIso.order = True # Hotfix
-					
+			dateIso = dateModule.DateFormat.Iso()
+			dates = []
+			for date in foundDates:
+				toAdd = dateModule.DateFormat(date)
+				print(toAdd, end = " ")
+				if toAdd.definitelyDate == False:
+					print("Definitively not a date.")
+					continue
+				if toAdd.definitelyDate is None:
+					print("Maybe not a date.")
+					continue
+				if toAdd.iso:
+					foundIso = True
+					print("ISO format.")
+					continue
+				print("Wrong format")
+				dateIso -= toAdd.iso
+				dates.append(toAdd)
+			
+			unitIso = unitModule.BaseUnit.Iso()
+			units = []
+			for unit in foundUnits:
+				toAdd = unitModule.Unit(unit)
+				print(toAdd, end = " ")
+				if len(toAdd.subUnits) <= 0:
+					print("Not a unit.")
+					continue
+				if toAdd.iso:
+					foundIso = True
+					print("ISO unit.")
+					continue
+				print("Wrong unit.")
+				unitIso += toAdd.iso
+				units.append(toAdd)
+			
+			if len(dates) > 0 or len(units) > 0:
+				async with message.channel.typing():
 					sentence = textModule.Sentence(message)
 					embed = Embed(title = sentence.title(), description = sentence.subtitle(dateIso, unitIso), color = 0xe4010c)
 					file = File("Assets/warning.png", filename="warning.png")
@@ -100,9 +95,9 @@ async def on_message(message):
 					embed.set_footer(text = sentence.footer(), icon_url = "https://cdn.discordapp.com/avatars/796794008172888134/6b073c408aa584e4a03d7cfaf00d1e66.png") # TODO: Test stability.
 					await message.reply(file = file, embed = embed)
 					print("")
-				elif foundIso:
-					await message.add_reaction("✅")
-					print("Date is ISO-8601 compliant.\n")
+			elif foundIso:
+				await message.add_reaction("✅")
+				print("Date is ISO-8601 compliant.\n")
 
 try:
 	client.run(TOKEN)
