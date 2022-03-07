@@ -217,7 +217,7 @@ SELECT * FROM"""
 			send += f"I think you meant to {self.word(['binder', randint(0, 1)])}say \"**{unit.isoString()}**\"."
 
 		if randint(0, 1) == 0:
-			send += f"\nDon't use *{unit.name}*"
+			send += f"\nDon't use *{unit.stringParts()}*"
 			if randint(0, 1) == 0:
 				randomBinder = randint(0, 1)
 				send += f", you {self.word(['adjective', randint(0, randomBinder), 'binder', randomBinder, 'adjective', randint(0, 1), 'insult'])[:-1]}"
@@ -231,7 +231,7 @@ SELECT * FROM"""
 			if randomComment > 0:
 				send += "the "
 			send += self.word(['state', randomState, 'binder', randomState, randint(0, 1), 'comment', randomComment])
-			send += f"are you using *{unit.name}*!?"
+			send += f"are you using *{unit.stringParts()}*!?"
 
 		# Shortens message (crudely if needed) if it's too long.
 		if len(send) > 1024:

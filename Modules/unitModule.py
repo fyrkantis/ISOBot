@@ -1,17 +1,19 @@
+import enum
 from . import dataModule
 
 # External libraries
 import math
 import re
 
-siUnits = {
-	"length": "meter",
-	"mass": "gram",
-	"energy": "joule",
-	"time": "second",
-	"force": "newton",
-	"effect": "watt",
-	"pressure": "pascal"
+siParts = {
+	"length": {"name": "meter", "inflection": 0, "symbol": "m"},
+	"mass": {"name": "gram", "inflection": 0, "symbol": "g"},
+	"energy": {"name": "joule", "inflection": 0, "symbol": "J"},
+	"time": {"name": "second", "inflection": 0, "symbol": "s"},
+	"force": {"name": "newton", "inflection": 0, "symbol": "N"},
+	"effect": {"name": "watt", "inflection": 0, "symbol": "W"},
+	"pressure": {"name": "pascal", "inflection": 0, "symbol": "Pa"},
+	"frequence": {"name": "hertz", "inflection": 3, "symbol": "Hz"}
 }
 
 # Non case-sensitive prefixes.
@@ -33,6 +35,10 @@ siSymbols = {
 #}
 
 class BaseUnit():
+	def __init__(self, factors, divisors): # Only used when creating temporary units.
+		self.factors = factors
+		self.divisors = divisors
+	
 	def convert(self):
 		self.conversion = 1
 		for factor in self.factors:
@@ -40,31 +46,65 @@ class BaseUnit():
 		for divisor in self.divisors:
 			self.conversion /= (divisor.conversion * 10 ** divisor.base) ** divisor.exponent
 	
+	def stringParts(self):
+		send = ""
+		for i, factor in enumerate(self.factors):
+			if i > 0:
+				send += " "
+			if True:
+				send += pluralUnit(factor.name, factor.inflection)
+			else:
+				send += factor.name
+			if factor.exponent != 1:
+				send += "^" + str(factor.exponent)
+			if factor.base != 0:
+				send += "\*10^" + str(factor.base)
+				
+		if len(self.divisors) > 0:
+			send += " per "
+			for i, divisor in enumerate(self.divisors):
+				if i > 0:
+					send += " "
+				if i > 0:
+					send += pluralUnit(divisor.name, divisor.inflection)
+				else:
+					send += divisor.name
+				if divisor.exponent != 1:
+					send += "^" + str(divisor.exponent)
+				if divisor.base != 0:
+					send += "\*10^" + str(divisor.base)
+		return send
+	
 	class Part():
-		def __init__(self, name):
-			self.name = name
+		def __init__(self, rawInput):
+			self.rawInput = rawInput
+			self.name = ""
+			self.inflection = 0
 			self.unitType = None
 			self.conversion = 1
 			self.exponent = 1
 			self.base = 0
 			self.si = False
 
-			for siType, siName in siUnits.items():
-				if self.name.lower() == siName or self.name.lower() == siName[0]:
-					print("SI unit.")
+			for siType, siPart in siParts.items():
+				if self.rawInput.lower() in [siPart["name"], siPart["symbol"], pluralUnit(siPart["name"], siPart["inflection"])]:
+					#print("SI unit.")
+					self.name = siPart["name"]
 					self.unitType = siType
 					self.si = True
 					return
 
 			cursor = dataModule.connection.cursor()
-			cursor.execute("""SELECT type, conversion, base FROM defaultUnits
+			cursor.execute("""SELECT name, inflection, type, conversion, base FROM defaultUnits
 WHERE @0 IN (name, pluralUnit(name, inflection), symbol, symbol + "s")
-LIMIT 1;""", [self.name])
+LIMIT 1;""", [self.rawInput])
 			result = cursor.fetchone()
 			cursor.close()
 			if not result is None:
-				print(result)
-				types = result[0].strip().split()
+				#print(result)
+				self.name = result[0]
+				self.inflection = result[1]
+				types = result[2].strip().split()
 				if len(types) >= 2 and types[1].isdigit(): # I'm not trusting that goddamn database!
 					self.unitType = types[0]
 					self.exponent *= int(types[1])
@@ -73,18 +113,18 @@ LIMIT 1;""", [self.name])
 					self.exponent *= int(types[0])
 				elif len(types) >= 1:
 					self.unitType = types[0]
-				self.conversion = (result[1] * 10 ** result[2]) ** (1 / self.exponent) # Raised to power of 1 divided by exponent because exponent is already included in conversion number.
+				self.conversion = (result[3] * 10 ** result[4]) ** (1 / self.exponent) # Raised to power of 1 divided by exponent because exponent is already included in conversion number.
 			else:
-				print(f"Couldn't find unit \"{self.name}\" in database.")
+				print(f"Couldn't find unit \"{self.rawInput}\" in database.")
 		
 		def __eq__(self, other):
 			return isinstance(other, BaseUnit.Part) and self.unitType == other.unitType and self.exponent == other.exponent
 		
 		def __str__(self):
-			return f"{self.name}^{self.exponent} * 10^{self.base}, {self.unitType} unit with conversion {self.conversion}. SI: {self.si}"
+			return f"\"{self.rawInput}\" {self.name}^{self.exponent} * 10^{self.base}. Type: {self.unitType}. Conversion: {self.conversion}. SI: {self.si}"
 		
 		def __repr__(self):
-			return f"{self.name}^{self.exponent} * 10^{self.base} {self.unitType} {self.conversion}"
+			return f"{self.name}^{self.exponent} * 10^{self.base}. {self.unitType} {self.conversion} {self.si}"
 
 	class Iso():
 		def __init__(self):
@@ -109,7 +149,6 @@ LIMIT 1;""", [self.name])
 
 class Unit(BaseUnit):
 	def __init__(self, rawInput):
-		self.name = "aaaaaa" # Temporary
 		self.rawInput = rawInput # The full unit as entered.
 		self.subUnits = []
 		self.iso = self.Iso()
@@ -261,10 +300,10 @@ def getUnitMatch():
 	cursor.execute("SELECT name, inflection, symbol FROM defaultUnits")
 	inflections = [[]] # A list of lists of all unit names and prefixes, indexed by inflection.
 	symbolString = r""
-	for unit in siUnits.values():
-		inflections[0].append(unit)
-		symbolString += r"|" + re.escape(unit[0])
-	for unit in cursor.fetchall():
+	siPartsList = []
+	for siPart in siParts.values():
+		siPartsList.append(list(siPart.values()))
+	for unit in cursor.fetchall() + siPartsList:
 		while len(inflections) <= unit[1]:
 			inflections.append([])
 		inflections[unit[1]].append(unit[0])
