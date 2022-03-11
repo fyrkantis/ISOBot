@@ -2,13 +2,17 @@ from Modules import dateModule, inputModule, textModule
 
 # External Libraries
 import os
-from discord import Client, Embed, File, Activity, ActivityType, errors
+from discord import Client, Embed, File, Status, Activity, ActivityType, errors
 from dotenv import load_dotenv
+
+def userOnline(guild, id):
+	member = guild.get_member(id)
+	if member is None:
+		return False
+	return member.status == Status.online
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD = os.getenv("DISCORD_GUILD")
-ID = os.getenv("DISCORD_ID")
 client = Client()
 
 @client.event
@@ -38,6 +42,9 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
+	if userOnline(message.guild, 732228885739077632):
+		print("ISO Bot Experimental is already online here.")
+		return
 	if not message.author.bot:
 		foundDates = dateModule.pattern.findall(message.content)
 		foundIso = False
