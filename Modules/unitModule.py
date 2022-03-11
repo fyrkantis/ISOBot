@@ -1,7 +1,7 @@
-import enum
 from . import dataModule
 
 # External libraries
+from copy import deepcopy
 import math
 import re
 
@@ -35,55 +35,83 @@ siSymbols = {
 #}
 
 class BaseUnit():
-	def __init__(self, factors, divisors): # Only used when creating temporary units.
+	def __init__(self, factors = [], divisors = []): # Only used when creating temporary units.
 		self.factors = factors
 		self.divisors = divisors
 	
 	def convert(self):
 		self.conversion = 1
 		for factor in self.factors:
-			self.conversion *= (factor.conversion * 10 ** factor.base) ** factor.exponent
+			self.conversion *= factor.conversion
 		for divisor in self.divisors:
-			self.conversion /= (divisor.conversion * 10 ** divisor.base) ** divisor.exponent
+			self.conversion /= divisor.conversion
 	
 	def stringParts(self):
 		send = ""
 		for i, factor in enumerate(self.factors):
+			exponent = factor.exponent / factor.internalExponent
 			if i > 0:
 				send += " "
-			if True:
-				send += pluralUnit(factor.name, factor.inflection)
-			else:
-				send += factor.name
-			if factor.exponent != 1:
-				send += "^" + str(factor.exponent)
+			if exponent == 2:
+				send += "square "
+			elif exponent == 3:
+				send += "cubic "
 			if factor.base != 0:
+				foundPrefix = False
+				for prefix, value in siPrefixes.items():
+					if factor.base == value:
+						send += prefix
+						foundPrefix = True
+						break
+			send += pluralUnit(factor.name, factor.inflection)
+			if exponent < 1 or exponent > 3:
+				send += "^" + str(exponent)
+			if factor.base != 0 and not foundPrefix:
 				send += "\*10^" + str(factor.base)
 				
 		if len(self.divisors) > 0:
-			send += " per "
+			if len(self.factors) > 0:
+				send += " per "
+			else:
+				send += "inverse "
 			for i, divisor in enumerate(self.divisors):
+				exponent = divisor.exponent / divisor.internalExponent
 				if i > 0:
 					send += " "
+				if exponent == 2:
+					send += "square "
+				elif exponent == 3:
+					send += "cubic "
 				if i > 0:
 					send += pluralUnit(divisor.name, divisor.inflection)
 				else:
 					send += divisor.name
-				if divisor.exponent != 1:
-					send += "^" + str(divisor.exponent)
+				if exponent < 1 or exponent > 3:
+					send += "^" + str(exponent)
 				if divisor.base != 0:
 					send += "\*10^" + str(divisor.base)
 		return send
 	
-	class Part():
-		def __init__(self, rawInput):
+	class BasePart():
+		def __eq__(self, other):
+			return self.unitType == other.unitType and self.exponent == other.exponent
+		
+		def __str__(self):
+			return f"{self.name}^({self.exponent}/{self.internalExponent}) * 10^{self.base} {self.unitType}."
+		
+		def __repr__(self):
+			return str(self)
+	
+	class Part(BasePart):
+		def __init__(self, rawInput, base = 0):
 			self.rawInput = rawInput
 			self.name = ""
 			self.inflection = 0
 			self.unitType = None
 			self.conversion = 1
+			self.internalExponent = 1
 			self.exponent = 1
-			self.base = 0
+			self.base = base
 			self.si = False
 
 			for siType, siPart in siParts.items():
@@ -107,24 +135,25 @@ LIMIT 1;""", [self.rawInput])
 				types = result[2].strip().split()
 				if len(types) >= 2 and types[1].isdigit(): # I'm not trusting that goddamn database!
 					self.unitType = types[0]
-					self.exponent *= int(types[1])
+					self.internalExponent *= int(types[1])
 				elif len(types) >= 2 and types[0].isdigit():
 					self.unitType = types[1]
-					self.exponent *= int(types[0])
+					self.internalExponent *= int(types[0])
 				elif len(types) >= 1:
 					self.unitType = types[0]
-				self.conversion = (result[3] * 10 ** result[4]) ** (1 / self.exponent) # Raised to power of 1 divided by exponent because exponent is already included in conversion number.
+				self.exponent *= self.internalExponent
+				self.conversion = result[3] * 10 ** (self.base * self.exponent + result[4]) # Raised to power of 1 divided by exponent because exponent is already included in conversion number.
 			else:
 				print(f"Couldn't find unit \"{self.rawInput}\" in database.")
-		
-		def __eq__(self, other):
-			return isinstance(other, BaseUnit.Part) and self.unitType == other.unitType and self.exponent == other.exponent
-		
-		def __str__(self):
-			return f"\"{self.rawInput}\" {self.name}^{self.exponent} * 10^{self.base}. Type: {self.unitType}. Conversion: {self.conversion}. SI: {self.si}"
-		
-		def __repr__(self):
-			return f"{self.name}^{self.exponent} * 10^{self.base}. {self.unitType} {self.conversion} {self.si}"
+	
+	class IsoPart(BasePart):
+		def __init__(self, part, siPart = {}):
+			self.name = siPart["name"]
+			self.unitType = part.unitType
+			self.inflection = siPart["inflection"]
+			self.internalExponent = 1
+			self.exponent = part.exponent
+			self.base = part.base
 
 	class Iso():
 		def __init__(self):
@@ -155,7 +184,7 @@ class Unit(BaseUnit):
 		self.factors = [] # (subUnit1 + subUnit2) * factor1 * factor2 / (divisor1 * divisor2)
 		self.divisors = []
 
-		# Goes through all parts of the unit and adds sub-units accordingly.
+		# Goes through all parts of the unit and adds sub-units accordingly. TODO: Make 1 meter^-1 and 1 meter * 10^3 possible.
 		capture = r"(?:(?<!\w)(\d+(?:[\.\, ]\d+)*)|(?:\+|plus|and)|(?:\*|a|times|mult\w*)|(\/|\\|per|p|div\w*)|(''?|\")|(?:(?:(sq)|(cub))\w* *)?(?:(?:(" + r"|".join(list(siPrefixes.keys())) + r")|(" + r"|".join(list(siSymbols.keys())) + r")) *)??((?:" + getUnitMatch() + r"))(?:( *squared|(?: *\^ *)?2)|( *cube|(?: *\^ *)?3))?)"
 		print(capture)
 		dividing = False
@@ -175,16 +204,16 @@ class Unit(BaseUnit):
 					else:# parts[1] == "''" or parts[1] == "\"":
 						part = subUnit.Part("inch")
 				else: # Unit
-					part = subUnit.Part(parts[7])
-				self.addDuring(part, subUnit, dividing) # TODO: 5 square inches and 7 feet per second.
+					base = 0
+					# Prefix			
+					if parts[5].lower() in siPrefixes:
+						base += siPrefixes[parts[5].lower()]
+					elif parts[6].lower() in siSymbols:
+						base += siSymbols[parts[6].lower()]
+					part = subUnit.Part(parts[7], base)
+				self.addSubPart(part, subUnit, dividing)
 				if not part.si:
 					subUnit.iso.unit = False
-
-				# Prefix			
-				if parts[5].lower() in siPrefixes:
-					part.base += siPrefixes[parts[5].lower()]
-				elif parts[6].lower() in siSymbols:
-					part.base += siSymbols[parts[6].lower()]
 
 				if parts[3] != "" or parts[8] != "": # Squared.
 					part.exponent *= 2
@@ -204,9 +233,10 @@ class Unit(BaseUnit):
 					subUnit.divisors.remove(mainDivisor)
 			subUnit.convert()
 		self.convert()
+		self.isoUnit = IsoUnit(unit = self)
 	
 	# Adds a part to a sub unit and handles the shared lists as well.
-	def addDuring(self, part, subUnit, dividing = False):
+	def addSubPart(self, part, subUnit, dividing = False):
 		if not dividing:
 			mainParts = self.factors
 			subUnit.factors.append(part)
@@ -257,17 +287,17 @@ class Unit(BaseUnit):
 		converted = 0
 		for subUnit in self.subUnits:
 			converted += subUnit.amount * subUnit.conversion * self.conversion
-		return significantFigures(converted)
+		return f"{significantFigures(converted)} {self.isoUnit.stringParts()}"
 	
 	def __str__(self):
-		return f"{self.rawInput}, parts: {self.factors} / {self.divisors}, sub-units: {self.subUnits}\nISO: {self.iso}"
+		return f"{self.rawInput}, parts: {self.factors} / {self.divisors}, subUnits: {self.subUnits}\nisoUnit: {self.isoUnit}\niso: {self.iso}"
 
 class SubUnit(BaseUnit):
 		def __init__(self, rawAmount):
 			self.rawAmount = rawAmount
+			self.iso = self.Iso()
 			self.factors = [] # (subUnit1 + subUnit2) * factor1 * factor2 / (divisor1 * divisor2)
 			self.divisors = []
-			self.iso = self.Iso()
 
 			# Creates self.amount from self.rawAmount, and checks if its iso.
 			self.punctuation = self.rawAmount.count(",") <= 0 # "123,456.789"
@@ -294,6 +324,37 @@ class SubUnit(BaseUnit):
 		
 		def __repr__(self):
 			return "\n" + str(self)
+
+class IsoUnit(BaseUnit):
+	def __init__(self, factors = [], divisors = [], unit = None):
+		self.factors = []
+		self.divisors = []
+		if not unit is None:
+			factors = unit.factors
+			divisors = unit.divisors
+		for factor in factors:
+			self.addIsoPart(factor)
+		for divisor in divisors:
+			self.addIsoPart(divisor, dividing = True)
+	
+	def addIsoPart(self, part, dividing = False):
+		siPart = siParts.get(part.unitType)
+		if part.unitType is None or siPart is None:
+			print("ERROR: Unit is missing type.")
+			return
+		if part.si:
+			print("Already SI.")
+			isoPart = part
+		else:
+			isoPart = self.IsoPart(part, siPart)
+		
+		if not dividing:
+			self.factors.append(isoPart)
+		else:
+			self.divisors.append(isoPart)
+	
+	def __str__(self):
+		return f"{self.factors} / {self.divisors}"
 
 def getUnitMatch():
 	cursor = dataModule.connection.cursor()
@@ -359,3 +420,5 @@ def pluralUnit(name, inflection = 0):
 		return name.replace("o", "e").replace("O", "E")
 	return name
 dataModule.connection.create_function("pluralUnit", 2, pluralUnit)
+
+#def getPrefix
