@@ -14,7 +14,8 @@ def userOnline(guild, id):
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-intents = Intents(guilds = True, guild_messages = True)
+intents = Intents.default()
+intents.messages = True
 client = Client(intents = intents)
 
 @client.event
