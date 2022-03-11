@@ -2,7 +2,7 @@ from Modules import dateModule, inputModule, textModule
 
 # External Libraries
 import os
-from discord import Client, Embed, File, Status, Activity, ActivityType, errors
+from discord import Client, Intents, Embed, File, Status, Activity, ActivityType, errors
 from dotenv import load_dotenv
 
 def userOnline(guild, id):
@@ -13,7 +13,9 @@ def userOnline(guild, id):
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-client = Client()
+
+intents = Intents(guilds = True, guild_messages = True)
+client = Client(intents = intents)
 
 @client.event
 async def on_ready():
