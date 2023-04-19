@@ -92,7 +92,7 @@ async def on_message(message):
 				elif foundIso:
 					await message.add_reaction("✅")
 					print("Date is ISO-8601 compliant.\n")
-	elif message.author.id == "1098255899165990973":
+	elif message.author.id == 1098255899165990973:
 		sentence = textModule.Sentence(message)
 		await message.reply(sentence.insult())
 
