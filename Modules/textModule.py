@@ -259,3 +259,20 @@ SELECT * FROM"""
 			send += choice(["tazer", "pair of scissors", "rusty spoon", "brick"])
 			send += "!"
 		return send
+
+	def insult(self) -> str:
+		words = []
+		if randint(0, 1) == 0:
+			words.append("Eat ")
+			words.append(self.word(["object"]))
+		else:
+			words.append("Shut ")
+			if randint(0, 1) == 0:
+				words.append("the fuck ")
+			words.append("up ")
+		words.append("you ")
+		words.append(self.word(["state", randint(0, 1), "binder", randint(0, 1), "adjective", "binder", randint(0, 1), "insult", randint(0, 1)]))
+		words.append(choice(["robot vacuum ", "garbled python script ", "tin can "]))
+		if randint(0, 1) == 0:
+			words.append(self.word(["insult"]))
+		return "".join(words)[:-1] + "."

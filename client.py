@@ -1,3 +1,4 @@
+from re import M
 from Modules import dateModule, inputModule, textModule
 
 # External Libraries
@@ -42,12 +43,13 @@ async def on_ready():
 	activity = ActivityType.watching
 	await client.change_presence(activity = Activity(name = status, type = activity))
 	print(str(activity) + status)
+	print(":)")
 
 @client.event
 async def on_message(message):
-	if userOnline(message.guild, 732228885739077632):
-		print("ISO Bot Experimental is already online here.")
-		return
+	#if userOnline(message.guild, 732228885739077632):
+	#	print("ISO Bot Experimental is already online here.")
+	#	return
 	if not message.author.bot:
 		foundDates = dateModule.pattern.findall(message.content)
 		foundIso = False
@@ -90,6 +92,9 @@ async def on_message(message):
 				elif foundIso:
 					await message.add_reaction("✅")
 					print("Date is ISO-8601 compliant.\n")
+	elif message.author.id == "1098255899165990973":
+		sentence = textModule.Sentence(message)
+		await message.reply(sentence.insult())
 
 try:
 	client.run(TOKEN)
