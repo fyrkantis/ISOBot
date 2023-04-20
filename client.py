@@ -1,5 +1,4 @@
-from re import M
-from Modules import dateModule, inputModule, textModule
+from Modules import dateModule, textModule, inputModule
 
 # External Libraries
 import os
@@ -17,6 +16,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 
 intents = Intents.default()
 intents.messages = True
+intents.message_content = True
 client = Client(intents = intents)
 
 @client.event
@@ -92,9 +92,10 @@ async def on_message(message):
 				elif foundIso:
 					await message.add_reaction("✅")
 					print("Date is ISO-8601 compliant.\n")
-	elif message.author.id == 1098255899165990973:
+	elif message.author.id == 1098255899165990973 and "iso" in message.content.lower():
 		sentence = textModule.Sentence(message)
 		await message.reply(sentence.insult())
+	
 
 try:
 	client.run(TOKEN)

@@ -262,9 +262,11 @@ SELECT * FROM"""
 
 	def insult(self) -> str:
 		words = []
-		if randint(0, 1) == 0:
+		if randint(0, 2) == 0:
 			words.append("Eat ")
 			words.append(self.word(["object"]))
+		elif randint(0, 1) == 0:
+			words.append("Nobody likes you, ")
 		else:
 			words.append("Shut ")
 			if randint(0, 1) == 0:
